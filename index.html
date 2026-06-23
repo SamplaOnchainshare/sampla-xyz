@@ -895,19 +895,45 @@ document.addEventListener('DOMContentLoaded',()=>{
 });
 
 // ---- WALLET ----
-function toggleWallet() {
-  walletConnected = !walletConnected;
+async function toggleWallet() {
   const dot = document.getElementById('wallet-dot');
   const label = document.getElementById('wallet-label');
-  if(walletConnected){
-    dot.style.background='var(--accent)';
-    label.textContent='7xKp...m4Rq';
-    alert('Wallet connected!\n\n(Production: Solana Mobile Wallet Adapter)');
-  } else {
-    dot.style.background='var(--text3)';
-    label.textContent='Connect wallet';
+
+  if(walletConnected) {
+    // Disconnect
+    try {
+      if(window.solana && window.solana.disconnect) await window.solana.disconnect();
+    } catch(e) {}
+    walletConnected = false;
+    walletAddress = null;
+    dot.style.background = 'var(--text3)';
+    label.textContent = 'Connect wallet';
+    renderSamples();
+    renderBeats();
+    return;
   }
-  renderSamples();
+
+  // Try Phantom
+  const provider = window.solana || window.phantom?.solana;
+
+  if(!provider || !provider.isPhantom) {
+    alert('Phantom wallet not found!\n\nPlease install Phantom:\nhttps://phantom.app\n\nOn Seeker: use the built-in wallet.');
+    return;
+  }
+
+  try {
+    const resp = await provider.connect();
+    walletAddress = resp.publicKey.toString();
+    walletConnected = true;
+    const short = walletAddress.slice(0,4) + '...' + walletAddress.slice(-4);
+    dot.style.background = 'var(--accent)';
+    label.textContent = short;
+    await saveProfileToDB(walletAddress, short);
+    renderSamples();
+    renderBeats();
+  } catch(e) {
+    alert('Wallet connection failed: ' + e.message);
+  }
 }
 
 renderSamples();
