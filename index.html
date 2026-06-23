@@ -819,27 +819,64 @@ function handleFile(input,targetId) {
   }
 }
 
-function submitUpload() {
+async function submitUpload() {
   const name = document.getElementById('upload-name').value;
   if(!name){alert('Add a name');return;}
-  SAMPLES.push({id:SAMPLES.length+1,name,artist:'zsolaa.wtf',bpm:parseInt(document.getElementById('upload-bpm').value)||0,key:document.getElementById('upload-key').value||'—',dur:'0:04',tags:document.getElementById('upload-tags').value.split(',').map(t=>t.trim()).filter(Boolean),pro:document.getElementById('upload-pro').checked,genre:'trap'});
-  filteredSamples=[...SAMPLES];
-  hideModal('upload-modal');
-  renderSamples();
-  alert(`"${name}" uploaded!\n\nProduction: stored on IPFS/Arweave, metadata on Solana.`);
+  const newSample = {
+    id: SAMPLES.length+1, name,
+    artist: walletAddress ? walletAddress.slice(0,4)+'...'+walletAddress.slice(-4) : 'anonymous',
+    bpm: parseInt(document.getElementById('upload-bpm').value)||0,
+    key: document.getElementById('upload-key').value||'—',
+    dur:'0:04',
+    tags: document.getElementById('upload-tags').value.split(',').map(t=>t.trim()).filter(Boolean),
+    pro: document.getElementById('upload-pro').checked,
+    genre:'trap', file_url:''
+  };
+  try {
+    await saveSampleToDB(newSample);
+    SAMPLES.unshift(newSample);
+    filteredSamples=[...SAMPLES];
+    hideModal('upload-modal');
+    renderSamples();
+    alert(`✅ "${name}" saved to database!`);
+  } catch(e) {
+    SAMPLES.unshift(newSample);
+    filteredSamples=[...SAMPLES];
+    hideModal('upload-modal');
+    renderSamples();
+    alert(`"${name}" uploaded locally.\n\nDB error: ${e.message}`);
+  }
 }
 
-function submitBeat() {
+async function submitBeat() {
   const title = document.getElementById('beat-name').value;
   const price = parseInt(document.getElementById('beat-price').value);
   if(!title){alert('Add a beat title');return;}
   if(!price||price<1){alert('Set a price in $SAMPLA');return;}
-  BEATS.push({id:BEATS.length+1,title,artist:'zsolaa.wtf',bpm:parseInt(document.getElementById('beat-bpm').value)||140,key:document.getElementById('beat-key').value||'—',genre:document.getElementById('beat-genre').value,price,tags:document.getElementById('beat-tags').value.split(',').map(t=>t.trim()).filter(Boolean),sold:false,emoji:'🎵',color:'#1a1a2e'});
-  filteredBeats=[...BEATS];
-  hideModal('beat-modal');
-  renderBeats();
-  const fee=Math.round(price*FEE);
-  alert(`"${title}" listed!\n\nPrice: ${price.toLocaleString()} $SAMPLA\nYou receive: ${(price-fee).toLocaleString()} $SAMPLA after sale\nPlatform fee: ${fee.toLocaleString()} $SAMPLA (3.3%)\n\nProduction: NFT metadata stored on-chain.`);
+  const newBeat = {
+    id: BEATS.length+1, title,
+    artist: walletAddress ? walletAddress.slice(0,4)+'...'+walletAddress.slice(-4) : 'anonymous',
+    bpm: parseInt(document.getElementById('beat-bpm').value)||140,
+    key: document.getElementById('beat-key').value||'—',
+    genre: document.getElementById('beat-genre').value,
+    price, tags: document.getElementById('beat-tags').value.split(',').map(t=>t.trim()).filter(Boolean),
+    sold:false, emoji:'🎵', color:'#1a1a2e', file_url:''
+  };
+  try {
+    await saveBeatToDB(newBeat);
+    BEATS.unshift(newBeat);
+    filteredBeats=[...BEATS];
+    hideModal('beat-modal');
+    renderBeats();
+    const fee=Math.round(price*FEE);
+    alert(`✅ "${title}" listed!\n\nPrice: ${price.toLocaleString()} $SAMPLA\nYou receive: ${(price-fee).toLocaleString()} $SAMPLA\nPlatform fee: ${fee.toLocaleString()} $SAMPLA (3.3%)`);
+  } catch(e) {
+    BEATS.unshift(newBeat);
+    filteredBeats=[...BEATS];
+    hideModal('beat-modal');
+    renderBeats();
+    alert(`Beat listed locally.\n\nDB error: ${e.message}`);
+  }
 }
 
 // live price preview in beat modal
@@ -875,6 +912,124 @@ function toggleWallet() {
 
 renderSamples();
 renderBeats();
+
+// ---- SUPABASE INTEGRATION ----
+const SUPABASE_URL = 'https://memqrddozojxceibkawj.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_br3VPUs3cOqJTZJYJmzQsQ_E4dcLzs-';
+
+async function sbFetch(path, options = {}) {
+  const res = await fetch(SUPABASE_URL + '/rest/v1/' + path, {
+    headers: {
+      'apikey': SUPABASE_KEY,
+      'Authorization': 'Bearer ' + SUPABASE_KEY,
+      'Content-Type': 'application/json',
+      'Prefer': options.prefer || 'return=representation',
+      ...options.headers
+    },
+    ...options
+  });
+  if (!res.ok) throw new Error('Supabase error: ' + res.status);
+  return res.json();
+}
+
+// Load real samples from Supabase
+async function loadSamplesFromDB() {
+  try {
+    const data = await sbFetch('samples?select=*&order=created_at.desc');
+    if (data && data.length > 0) {
+      const dbSamples = data.map(s => ({
+        id: s.id, name: s.title, artist: s.artist || 'unknown',
+        bpm: s.bpm || 0, key: s.key || '—', dur: '—',
+        tags: s.tags ? s.tags.split(',').map(t => t.trim()) : [],
+        pro: s.is_premium || false, genre: s.genre || 'trap',
+        file_url: s.file_url
+      }));
+      SAMPLES.length = 0;
+      dbSamples.forEach(s => SAMPLES.push(s));
+      filteredSamples = [...SAMPLES];
+      renderSamples();
+    }
+  } catch(e) { console.log('DB load:', e.message); }
+}
+
+// Load real beats from Supabase
+async function loadBeatsFromDB() {
+  try {
+    const data = await sbFetch('beats?select=*&order=created_at.desc');
+    if (data && data.length > 0) {
+      const dbBeats = data.map(b => ({
+        id: b.id, title: b.title, artist: b.artist || 'unknown',
+        bpm: b.bpm || 140, key: b.key || '—', genre: b.genre || 'trap',
+        price: b.price || 500,
+        tags: b.tags ? b.tags.split(',').map(t => t.trim()) : [],
+        sold: b.is_sold || false, soldTo: b.buyer_wallet || null,
+        emoji: '🎵', color: '#1a1a2e', file_url: b.file_url
+      }));
+      BEATS.length = 0;
+      dbBeats.forEach(b => BEATS.push(b));
+      filteredBeats = [...BEATS];
+      renderBeats();
+    }
+  } catch(e) { console.log('DB load beats:', e.message); }
+}
+
+// Save sample to Supabase
+async function saveSampleToDB(sample) {
+  return sbFetch('samples', {
+    method: 'POST',
+    prefer: 'return=representation',
+    body: JSON.stringify({
+      title: sample.name,
+      artist: sample.artist,
+      bpm: sample.bpm,
+      key: sample.key,
+      genre: sample.genre,
+      tags: sample.tags.join(','),
+      file_url: sample.file_url || '',
+      is_premium: sample.pro,
+      wallet_address: walletAddress || ''
+    })
+  });
+}
+
+// Save beat to Supabase
+async function saveBeatToDB(beat) {
+  return sbFetch('beats', {
+    method: 'POST',
+    prefer: 'return=representation',
+    body: JSON.stringify({
+      title: beat.title,
+      artist: beat.artist,
+      bpm: beat.bpm,
+      key: beat.key,
+      genre: beat.genre,
+      tags: beat.tags.join(','),
+      file_url: beat.file_url || '',
+      price: beat.price,
+      is_sold: false,
+      seller_wallet: walletAddress || ''
+    })
+  });
+}
+
+// Save profile to Supabase
+async function saveProfileToDB(wallet, username) {
+  try {
+    await sbFetch('profiles', {
+      method: 'POST',
+      prefer: 'return=representation',
+      headers: { 'Prefer': 'resolution=merge-duplicates' },
+      body: JSON.stringify({ wallet_address: wallet, username: username })
+    });
+  } catch(e) { console.log('Profile save:', e.message); }
+}
+
+// Init — load data from DB on page load
+let walletAddress = null;
+window.addEventListener('load', () => {
+  loadSamplesFromDB();
+  loadBeatsFromDB();
+});
 </script>
 <div style="position:fixed;bottom:0;left:0;right:0;display:flex;justify-content:center;pointer-events:none;z-index:99">
   <div style="background:rgba(10,10,10,0.9);border:1px solid rgba(200,255,0,0.1);border-bottom:none;border-radius:8px 8px 0 0;padding:6px 16px;display:flex;align-items:center;gap:12px;pointer-events:all">
