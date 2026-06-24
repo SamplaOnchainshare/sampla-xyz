@@ -197,6 +197,36 @@
   ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
 
   .divider { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+
+/* Profile management */
+.my-sample-row { display:grid; grid-template-columns:36px 1fr auto; align-items:center; gap:12px; padding:12px; border-radius:8px; background:var(--bg2); border:1px solid var(--border); margin-bottom:6px; transition:border-color 0.15s; }
+.my-sample-row:hover { border-color:var(--border2); }
+.my-sample-info { min-width:0; }
+.my-sample-name { font-size:13px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.my-sample-meta { font-size:11px; color:var(--text2); margin-top:2px; display:flex; gap:8px; flex-wrap:wrap; }
+.my-sample-actions { display:flex; gap:6px; align-items:center; flex-shrink:0; }
+.btn-edit { background:transparent; border:1px solid var(--border2); color:var(--text2); padding:5px 12px; border-radius:6px; font-size:12px; cursor:pointer; font-family:var(--font); transition:all 0.12s; }
+.btn-edit:hover { border-color:var(--accent); color:var(--accent); }
+.btn-delete { background:transparent; border:1px solid rgba(255,68,68,0.2); color:var(--red); padding:5px 10px; border-radius:6px; font-size:12px; cursor:pointer; font-family:var(--font); transition:all 0.12s; display:flex; align-items:center; gap:4px; }
+.btn-delete:hover { background:rgba(255,68,68,0.08); border-color:var(--red); }
+
+/* Confirm delete modal */
+.confirm-modal { width:360px; text-align:center; }
+.confirm-icon { font-size:36px; margin-bottom:12px; }
+.confirm-title { font-size:16px; font-weight:600; margin-bottom:8px; }
+.confirm-sub { font-size:13px; color:var(--text2); margin-bottom:20px; line-height:1.5; }
+.confirm-actions { display:flex; gap:10px; justify-content:center; }
+.btn-confirm-delete { background:var(--red); color:#fff; border:none; padding:9px 20px; border-radius:6px; font-size:13px; font-weight:600; cursor:pointer; font-family:var(--font); transition:opacity 0.12s; }
+.btn-confirm-delete:hover { opacity:0.85; }
+
+/* Edit modal fields */
+.edit-preview { background:var(--bg3); border:1px solid var(--border); border-radius:6px; padding:10px 12px; margin-bottom:16px; font-size:12px; color:var(--text2); }
+
+/* Empty state */
+.empty-state { text-align:center; padding:40px 20px; }
+.empty-state-icon { font-size:32px; margin-bottom:12px; }
+.empty-state-text { font-size:14px; color:var(--text2); margin-bottom:4px; }
+.empty-state-sub { font-size:12px; color:var(--text3); }
 </style>
 </head>
 <body>
@@ -504,6 +534,56 @@
   </div>
 </div>
 
+<!-- Delete confirm modal -->
+<div class="modal-overlay" id="delete-modal" style="display:none" onclick="hideModal('delete-modal',event)">
+  <div class="modal confirm-modal" onclick="event.stopPropagation()">
+    <div class="confirm-icon">🗑️</div>
+    <div class="confirm-title">Delete this sample?</div>
+    <div class="confirm-sub" id="delete-modal-sub">This will permanently remove the sample from Sampla. This action cannot be undone.</div>
+    <div class="confirm-actions">
+      <button class="btn btn-ghost" onclick="hideModal('delete-modal')">Cancel</button>
+      <button class="btn-confirm-delete" id="confirm-delete-btn" onclick="confirmDelete()">Yes, delete it</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit sample modal -->
+<div class="modal-overlay" id="edit-modal" style="display:none" onclick="hideModal('edit-modal',event)">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-title">Edit sample</div>
+    <div class="edit-preview" id="edit-preview-info"></div>
+    <div class="form-group">
+      <label class="form-label">Sample name</label>
+      <input class="form-input" id="edit-name" placeholder="Sample name">
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">BPM</label><input class="form-input" id="edit-bpm" type="number" placeholder="140"></div>
+      <div class="form-group"><label class="form-label">Key</label><input class="form-input" id="edit-key" placeholder="C#m"></div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Tags (comma separated)</label>
+      <input class="form-input" id="edit-tags" placeholder="trap, dark, melody">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="hideModal('edit-modal')">Cancel</button>
+      <button class="btn btn-accent" onclick="confirmEdit()">Save changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- Delete beat confirm modal -->
+<div class="modal-overlay" id="delete-beat-modal" style="display:none" onclick="hideModal('delete-beat-modal',event)">
+  <div class="modal confirm-modal" onclick="event.stopPropagation()">
+    <div class="confirm-icon">🗑️</div>
+    <div class="confirm-title">Remove this beat?</div>
+    <div class="confirm-sub" id="delete-beat-sub">This will permanently remove your beat listing. This action cannot be undone.</div>
+    <div class="confirm-actions">
+      <button class="btn btn-ghost" onclick="hideModal('delete-beat-modal')">Cancel</button>
+      <button class="btn-confirm-delete" id="confirm-delete-beat-btn" onclick="confirmDeleteBeat()">Yes, remove it</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const FEE = 0.033;
 const COLORS = ['#1a1a2e','#16213e','#0f3460','#1a1a2e','#2d1b4e','#1e3a2f'];
@@ -564,18 +644,29 @@ function renderSamples() {
 
   const myGrid = document.getElementById('my-samples-grid');
   if (myGrid) {
-    const mine = SAMPLES.filter(s=>s.artist==='zsolaa.wtf');
-    myGrid.innerHTML = mine.length ? mine.map(s=>`
-      <div class="sample-row" onclick="playSample(${s.id})">
-        <button class="play-btn" onclick="event.stopPropagation();playSample(${s.id})"><svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg></button>
-        <div><div class="sample-name">${s.name}</div><div class="sample-artist">${s.artist}</div></div>
-        <div class="sample-bpm">${s.bpm>0?s.bpm+' BPM':'—'}</div>
-        <div class="sample-key">${s.key}</div>
-        <div class="sample-dur">${s.dur}</div>
-        <div class="sample-tags">${s.tags.slice(0,2).map(t=>`<span class="tag">${t}</span>`).join('')}</div>
-        <div class="sample-actions"><button class="btn btn-ghost btn-sm">Edit</button></div>
-      </div>`).join('')
-    : `<div style="color:var(--text3);font-size:13px;padding:20px 12px">No uploads yet. Hit "+ Upload sample" to get started.</div>`;
+    const mine = SAMPLES.filter(s => s.artist === 'zsolaa.wtf' || s.artist === (walletAddress ? walletAddress.slice(0,4)+'...'+walletAddress.slice(-4) : '__none__'));
+    if (!mine.length) {
+      myGrid.innerHTML = `<div class="empty-state"><div class="empty-state-icon">🎵</div><div class="empty-state-text">No uploads yet</div><div class="empty-state-sub">Hit "+ Upload sample" to share your first sample</div></div>`;
+    } else {
+      myGrid.innerHTML = mine.map(s => `
+        <div class="my-sample-row" id="my-sample-${s.id}">
+          <button class="play-btn" onclick="event.stopPropagation();playSample(${s.id})">
+            <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          </button>
+          <div class="my-sample-info">
+            <div class="my-sample-name">${s.name}${s.pro ? ' <span class="badge badge-pro" style="font-size:10px;padding:1px 5px;vertical-align:middle">PRO</span>' : ''}</div>
+            <div class="my-sample-meta">
+              ${s.bpm > 0 ? `<span>${s.bpm} BPM</span>` : ''}
+              ${s.key !== '—' ? `<span>${s.key}</span>` : ''}
+              ${s.tags.slice(0,3).map(t => `<span class="tag">${t}</span>`).join('')}
+            </div>
+          </div>
+          <div class="my-sample-actions">
+            <button class="btn-edit" onclick="event.stopPropagation();openEditModal(${s.id})">✏️ Edit</button>
+            <button class="btn-delete" onclick="event.stopPropagation();openDeleteModal(${s.id},'sample')">🗑️</button>
+          </div>
+        </div>`).join('');
+    }
   }
 }
 
@@ -587,8 +678,29 @@ function renderBeats() {
 
   const myGrid = document.getElementById('my-beats-grid');
   if (myGrid) {
-    const mine = BEATS.filter(b=>b.artist==='zsolaa.wtf');
-    myGrid.innerHTML = mine.length ? mine.map(b=>beatCardHTML(b)).join('') : `<div style="color:var(--text3);font-size:13px;padding:20px 0">No beats listed yet.</div>`;
+    const mine = BEATS.filter(b => b.artist === 'zsolaa.wtf' || b.artist === (walletAddress ? walletAddress.slice(0,4)+'...'+walletAddress.slice(-4) : '__none__'));
+    if (!mine.length) {
+      myGrid.innerHTML = `<div class="empty-state"><div class="empty-state-icon">🎹</div><div class="empty-state-text">No beats listed yet</div><div class="empty-state-sub">Hit "+ List beat" to put your beat on the market</div></div>`;
+    } else {
+      myGrid.innerHTML = mine.map(b => `
+        <div class="my-sample-row" id="my-beat-${b.id}">
+          <button class="play-btn" onclick="playBeat(${b.id})">
+            <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          </button>
+          <div class="my-sample-info">
+            <div class="my-sample-name">${b.title} ${b.sold ? '<span class="badge badge-sold" style="font-size:10px;vertical-align:middle">Sold</span>' : '<span class="badge badge-nft" style="font-size:10px;vertical-align:middle">Listed</span>'}</div>
+            <div class="my-sample-meta">
+              <span>${b.bpm} BPM</span>
+              <span>${b.key}</span>
+              <span style="color:var(--accent);font-weight:600">${b.price.toLocaleString()} $SAMPLA</span>
+              ${b.sold ? `<span style="color:var(--text3)">Sold to: ${b.soldTo || 'anon'}</span>` : ''}
+            </div>
+          </div>
+          <div class="my-sample-actions">
+            ${!b.sold ? `<button class="btn-delete" onclick="event.stopPropagation();openDeleteModal(${b.id},'beat')">🗑️ Remove</button>` : '<span style="font-size:12px;color:var(--text3)">Sold ✓</span>'}
+          </div>
+        </div>`).join('');
+    }
   }
 
   const pGrid = document.getElementById('purchased-grid');
@@ -957,6 +1069,118 @@ async function sbFetch(path, options = {}) {
   if (!res.ok) throw new Error('Supabase error: ' + res.status);
   return res.json();
 }
+
+// ---- DELETE & EDIT FUNCTIONS ----
+let pendingDeleteId = null;
+let pendingDeleteType = null;
+let pendingEditId = null;
+
+function openDeleteModal(id, type) {
+  pendingDeleteId = id;
+  pendingDeleteType = type;
+  if (type === 'sample') {
+    const s = SAMPLES.find(s => s.id === id);
+    document.getElementById('delete-modal-sub').textContent = `"${s ? s.name : 'this sample'}" will be permanently removed from Sampla. This cannot be undone.`;
+    document.getElementById('delete-modal').style.display = 'flex';
+  } else {
+    const b = BEATS.find(b => b.id === id);
+    document.getElementById('delete-beat-sub').textContent = `"${b ? b.title : 'this beat'}" will be permanently removed from the marketplace. This cannot be undone.`;
+    document.getElementById('delete-beat-modal').style.display = 'flex';
+  }
+}
+
+async function confirmDelete() {
+  const id = pendingDeleteId;
+  const s = SAMPLES.find(s => s.id === id);
+  hideModal('delete-modal');
+  // Remove from Supabase
+  try {
+    await sbFetch('samples?id=eq.' + id, {
+      method: 'DELETE',
+      prefer: 'return=minimal'
+    });
+  } catch(e) { console.log('DB delete error:', e.message); }
+  // Remove from local array
+  const idx = SAMPLES.findIndex(s => s.id === id);
+  if (idx !== -1) SAMPLES.splice(idx, 1);
+  filteredSamples = filteredSamples.filter(s => s.id !== id);
+  renderSamples();
+  renderBeats();
+  showToast(`"${s ? s.name : 'Sample'}" deleted successfully`);
+}
+
+async function confirmDeleteBeat() {
+  const id = pendingDeleteId;
+  const b = BEATS.find(b => b.id === id);
+  hideModal('delete-beat-modal');
+  // Remove from Supabase
+  try {
+    await sbFetch('beats?id=eq.' + id, {
+      method: 'DELETE',
+      prefer: 'return=minimal'
+    });
+  } catch(e) { console.log('DB delete error:', e.message); }
+  // Remove from local array
+  const idx = BEATS.findIndex(b => b.id === id);
+  if (idx !== -1) BEATS.splice(idx, 1);
+  filteredBeats = filteredBeats.filter(b => b.id !== id);
+  renderBeats();
+  renderSamples();
+  showToast(`"${b ? b.title : 'Beat'}" removed from marketplace`);
+}
+
+function openEditModal(id) {
+  const s = SAMPLES.find(s => s.id === id);
+  if (!s) return;
+  pendingEditId = id;
+  document.getElementById('edit-preview-info').textContent = `Editing: ${s.name}`;
+  document.getElementById('edit-name').value = s.name;
+  document.getElementById('edit-bpm').value = s.bpm || '';
+  document.getElementById('edit-key').value = s.key !== '—' ? s.key : '';
+  document.getElementById('edit-tags').value = s.tags.join(', ');
+  document.getElementById('edit-modal').style.display = 'flex';
+}
+
+async function confirmEdit() {
+  const id = pendingEditId;
+  const s = SAMPLES.find(s => s.id === id);
+  if (!s) return;
+  const newName = document.getElementById('edit-name').value.trim();
+  const newBpm = parseInt(document.getElementById('edit-bpm').value) || 0;
+  const newKey = document.getElementById('edit-key').value.trim() || '—';
+  const newTags = document.getElementById('edit-tags').value.split(',').map(t => t.trim()).filter(Boolean);
+  if (!newName) { alert('Name cannot be empty'); return; }
+  // Update Supabase
+  try {
+    await sbFetch('samples?id=eq.' + id, {
+      method: 'PATCH',
+      prefer: 'return=minimal',
+      body: JSON.stringify({ title: newName, bpm: newBpm, key: newKey, tags: newTags.join(',') })
+    });
+  } catch(e) { console.log('DB update error:', e.message); }
+  // Update local
+  s.name = newName; s.bpm = newBpm; s.key = newKey; s.tags = newTags;
+  hideModal('edit-modal');
+  renderSamples();
+  showToast('Sample updated successfully ✓');
+}
+
+// Toast notification
+function showToast(msg) {
+  let toast = document.getElementById('sampla-toast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'sampla-toast';
+    toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#1a1a1a;border:1px solid rgba(200,255,0,0.3);color:#e8e8e8;padding:10px 20px;border-radius:8px;font-size:13px;z-index:999;transition:opacity 0.3s;white-space:nowrap;';
+    document.body.appendChild(toast);
+  }
+  toast.textContent = msg;
+  toast.style.opacity = '1';
+  clearTimeout(toast._timer);
+  toast._timer = setTimeout(() => { toast.style.opacity = '0'; }, 2500);
+}
+
+// ---- DELETE & EDIT FUNCTIONS END ----
 
 // Load real samples from Supabase
 async function loadSamplesFromDB() {
