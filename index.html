@@ -620,6 +620,7 @@ let walletConnected = false; let progressInterval = null; let progressPct = 0;
 let filteredSamples = [...SAMPLES]; let activeGenre = null; let activeType = null;
 let filteredBeats = [...BEATS]; let activeBeatGenre = null; let beatAvailableOnly = false;
 let pendingBeatId = null;
+let walletAddress = null;
 
 // ---- RENDER SAMPLES ----
 function renderSamples() {
@@ -1275,7 +1276,6 @@ async function saveProfileToDB(wallet, username) {
 }
 
 // Init — load data from DB on page load
-let walletAddress = null;
 window.addEventListener('load', () => {
   loadSamplesFromDB();
   loadBeatsFromDB();
