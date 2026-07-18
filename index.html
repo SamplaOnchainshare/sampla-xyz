@@ -1166,19 +1166,22 @@ async function confirmDelete() {
   const id = pendingDeleteId;
   const s = SAMPLES.find(s => s.id === id);
   hideModal('delete-modal');
-  // Remove from Supabase
+  // Remove from Supabase — uses the real Auth session so RLS can verify ownership
   try {
-    await sbFetch('samples?id=eq.' + id, {
-      method: 'DELETE',
-      prefer: 'return=minimal'
-    });
-  } catch(e) { console.log('DB delete error:', e.message); }
+    const { error } = await supabaseClient.from('samples').delete().eq('id', id);
+    if (error) throw error;
+  } catch(e) {
+    console.log('DB delete error:', e.message);
+    alert('Delete failed: ' + e.message);
+    return;
+  }
   // Remove from local array
   const idx = SAMPLES.findIndex(s => s.id === id);
   if (idx !== -1) SAMPLES.splice(idx, 1);
   filteredSamples = filteredSamples.filter(s => s.id !== id);
   renderSamples();
   renderBeats();
+  updateStats();
   showToast(`"${s ? s.name : 'Sample'}" deleted successfully`);
 }
 
@@ -1186,19 +1189,22 @@ async function confirmDeleteBeat() {
   const id = pendingDeleteId;
   const b = BEATS.find(b => b.id === id);
   hideModal('delete-beat-modal');
-  // Remove from Supabase
+  // Remove from Supabase — uses the real Auth session so RLS can verify ownership
   try {
-    await sbFetch('beats?id=eq.' + id, {
-      method: 'DELETE',
-      prefer: 'return=minimal'
-    });
-  } catch(e) { console.log('DB delete error:', e.message); }
+    const { error } = await supabaseClient.from('beats').delete().eq('id', id);
+    if (error) throw error;
+  } catch(e) {
+    console.log('DB delete error:', e.message);
+    alert('Delete failed: ' + e.message);
+    return;
+  }
   // Remove from local array
   const idx = BEATS.findIndex(b => b.id === id);
   if (idx !== -1) BEATS.splice(idx, 1);
   filteredBeats = filteredBeats.filter(b => b.id !== id);
   renderBeats();
   renderSamples();
+  updateStats();
   showToast(`"${b ? b.title : 'Beat'}" removed from marketplace`);
 }
 
@@ -1223,14 +1229,17 @@ async function confirmEdit() {
   const newKey = document.getElementById('edit-key').value.trim() || '—';
   const newTags = document.getElementById('edit-tags').value.split(',').map(t => t.trim()).filter(Boolean);
   if (!newName) { alert('Name cannot be empty'); return; }
-  // Update Supabase
+  // Update Supabase — uses the real Auth session so RLS can verify ownership
   try {
-    await sbFetch('samples?id=eq.' + id, {
-      method: 'PATCH',
-      prefer: 'return=minimal',
-      body: JSON.stringify({ title: newName, bpm: newBpm, key: newKey, tags: newTags.join(',') })
-    });
-  } catch(e) { console.log('DB update error:', e.message); }
+    const { error } = await supabaseClient.from('samples').update({
+      title: newName, bpm: newBpm, key: newKey, tags: newTags.join(',')
+    }).eq('id', id);
+    if (error) throw error;
+  } catch(e) {
+    console.log('DB update error:', e.message);
+    alert('Update failed: ' + e.message);
+    return;
+  }
   // Update local
   s.name = newName; s.bpm = newBpm; s.key = newKey; s.tags = newTags;
   hideModal('edit-modal');
@@ -1298,43 +1307,37 @@ async function loadBeatsFromDB() {
   updateStats();
 }
 
-// Save sample to Supabase
+// Save sample to Supabase — uses the real Auth session so RLS can verify ownership
 async function saveSampleToDB(sample) {
-  return sbFetch('samples', {
-    method: 'POST',
-    prefer: 'return=representation',
-    body: JSON.stringify({
-      title: sample.name,
-      artist: sample.artist,
-      bpm: sample.bpm,
-      key: sample.key,
-      genre: sample.genre,
-      tags: sample.tags.join(','),
-      file_url: sample.file_url || '',
-      is_premium: sample.pro,
-      wallet_address: walletAddress || ''
-    })
+  const { error } = await supabaseClient.from('samples').insert({
+    title: sample.name,
+    artist: sample.artist,
+    bpm: sample.bpm,
+    key: sample.key,
+    genre: sample.genre,
+    tags: sample.tags.join(','),
+    file_url: sample.file_url || '',
+    is_premium: sample.pro,
+    wallet_address: walletAddress || ''
   });
+  if (error) throw error;
 }
 
-// Save beat to Supabase
+// Save beat to Supabase — uses the real Auth session so RLS can verify ownership
 async function saveBeatToDB(beat) {
-  return sbFetch('beats', {
-    method: 'POST',
-    prefer: 'return=representation',
-    body: JSON.stringify({
-      title: beat.title,
-      artist: beat.artist,
-      bpm: beat.bpm,
-      key: beat.key,
-      genre: beat.genre,
-      tags: beat.tags.join(','),
-      file_url: beat.file_url || '',
-      price: beat.price,
-      is_sold: false,
-      seller_wallet: walletAddress || ''
-    })
+  const { error } = await supabaseClient.from('beats').insert({
+    title: beat.title,
+    artist: beat.artist,
+    bpm: beat.bpm,
+    key: beat.key,
+    genre: beat.genre,
+    tags: beat.tags.join(','),
+    file_url: beat.file_url || '',
+    price: beat.price,
+    is_sold: false,
+    seller_wallet: walletAddress || ''
   });
+  if (error) throw error;
 }
 
 // Save profile to Supabase — tied to the real auth.uid() from signInWithWeb3
