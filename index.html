@@ -584,9 +584,15 @@
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 const FEE = 0.033;
 const COLORS = ['#1a1a2e','#16213e','#0f3460','#1a1a2e','#2d1b4e','#1e3a2f'];
+
+// ---- SUPABASE CLIENT (real Auth session, not just raw REST calls) ----
+const SUPABASE_URL = 'https://memqrddozojxceibkawj.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_br3VPUs3cOqJTZJYJmzQsQ_E4dcLzs-';
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const SAMPLES = [
   {id:1,name:"Midnight Trap Keys",artist:"prodbywave",bpm:140,key:"F#m",dur:"0:04",tags:["trap","melody"],pro:false,genre:"trap"},
@@ -1013,8 +1019,9 @@ async function toggleWallet() {
   const label = document.getElementById('wallet-label');
 
   if(walletConnected) {
-    // Disconnect
+    // Disconnect — sign out of the real Supabase Auth session too
     try {
+      await supabaseClient.auth.signOut();
       if(window.solana && window.solana.disconnect) await window.solana.disconnect();
     } catch(e) {}
     walletConnected = false;
@@ -1035,13 +1042,23 @@ async function toggleWallet() {
   }
 
   try {
-    const resp = await provider.connect();
-    walletAddress = resp.publicKey.toString();
+    // 1) Connect the wallet in the browser
+    await provider.connect();
+
+    // 2) Ask the wallet to sign a SIWS message and let Supabase Auth verify it
+    //    -> this creates a REAL, server-verified Auth session (auth.uid())
+    const { data, error } = await supabaseClient.auth.signInWithWeb3({
+      chain: 'solana',
+      statement: 'Sign in to Sampla to manage your samples, beats and licences.'
+    });
+    if (error) throw error;
+
+    walletAddress = provider.publicKey.toString();
     walletConnected = true;
     const short = walletAddress.slice(0,4) + '...' + walletAddress.slice(-4);
     dot.style.background = 'var(--accent)';
     label.textContent = short;
-    await saveProfileToDB(walletAddress, short);
+    await saveProfileToDB(walletAddress, short, data.user.id);
     renderSamples();
     renderBeats();
   } catch(e) {
@@ -1052,10 +1069,7 @@ async function toggleWallet() {
 renderSamples();
 renderBeats();
 
-// ---- SUPABASE INTEGRATION ----
-const SUPABASE_URL = 'https://memqrddozojxceibkawj.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_br3VPUs3cOqJTZJYJmzQsQ_E4dcLzs-';
-
+// ---- SUPABASE INTEGRATION (raw REST helper, still used for public reads/writes) ----
 async function sbFetch(path, options = {}) {
   const res = await fetch(SUPABASE_URL + '/rest/v1/' + path, {
     headers: {
@@ -1263,20 +1277,30 @@ async function saveBeatToDB(beat) {
   });
 }
 
-// Save profile to Supabase
-async function saveProfileToDB(wallet, username) {
+// Save profile to Supabase — tied to the real auth.uid() from signInWithWeb3
+async function saveProfileToDB(wallet, username, userId) {
   try {
-    await sbFetch('profiles', {
-      method: 'POST',
-      prefer: 'return=representation',
-      headers: { 'Prefer': 'resolution=merge-duplicates' },
-      body: JSON.stringify({ wallet_address: wallet, username: username })
-    });
+    const { error } = await supabaseClient
+      .from('profiles')
+      .upsert({ id: userId, wallet_address: wallet, username: username }, { onConflict: 'id' });
+    if (error) console.log('Profile save error:', error.message);
   } catch(e) { console.log('Profile save:', e.message); }
 }
 
-// Init — load data from DB on page load
-window.addEventListener('load', () => {
+// Init — restore existing Auth session (if any) + load data from DB on page load
+window.addEventListener('load', async () => {
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    const provider = window.solana || window.phantom?.solana;
+    if (session && provider && provider.publicKey) {
+      walletAddress = provider.publicKey.toString();
+      walletConnected = true;
+      const short = walletAddress.slice(0,4) + '...' + walletAddress.slice(-4);
+      document.getElementById('wallet-dot').style.background = 'var(--accent)';
+      document.getElementById('wallet-label').textContent = short;
+    }
+  } catch(e) { console.log('Session restore:', e.message); }
+
   loadSamplesFromDB();
   loadBeatsFromDB();
 });
