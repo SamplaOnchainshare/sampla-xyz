@@ -824,7 +824,7 @@ async function confirmBuy() {
 
   try {
     btn.textContent = 'Preparing transaction…';
-    const decimals = await getSamplaDecimals();
+    const { decimals, tokenProgramId } = await getSamplaMintInfo();
     const fee = Math.round(b.price * FEE);
     const creatorAmount = b.price - fee;
     const factor = 10 ** decimals;
@@ -834,9 +834,9 @@ async function confirmBuy() {
     const sellerPk = new solanaWeb3.PublicKey(b.sellerWallet);
     const treasuryPk = new solanaWeb3.PublicKey(TREASURY_WALLET);
 
-    const buyerAta = getAssociatedTokenAddress(buyerPk, mintPk);
-    const sellerAta = getAssociatedTokenAddress(sellerPk, mintPk);
-    const treasuryAta = getAssociatedTokenAddress(treasuryPk, mintPk);
+    const buyerAta = getAssociatedTokenAddress(buyerPk, mintPk, tokenProgramId);
+    const sellerAta = getAssociatedTokenAddress(sellerPk, mintPk, tokenProgramId);
+    const treasuryAta = getAssociatedTokenAddress(treasuryPk, mintPk, tokenProgramId);
 
     const [buyerInfo, sellerInfo, treasuryInfo] = await Promise.all([
       solanaConnection.getAccountInfo(buyerAta),
@@ -844,13 +844,13 @@ async function confirmBuy() {
       solanaConnection.getAccountInfo(treasuryAta),
     ]);
 
-    if (!buyerInfo) throw new Error("You don't hold any $SAMPLA yet — buy some on pump.fun first.");
+    if (!buyerInfo) throw new Error(`You don't hold any $SAMPLA yet at ${buyerAta.toString()} (program ${tokenProgramId.toString().slice(0,8)}...). Buy some on pump.fun first.`);
 
     const ixs = [];
-    if (!sellerInfo) ixs.push(createAssociatedTokenAccountIx(buyerPk, sellerPk, mintPk, sellerAta));
-    if (!treasuryInfo) ixs.push(createAssociatedTokenAccountIx(buyerPk, treasuryPk, mintPk, treasuryAta));
-    ixs.push(transferCheckedIx(buyerAta, mintPk, sellerAta, buyerPk, Math.round(creatorAmount * factor), decimals));
-    ixs.push(transferCheckedIx(buyerAta, mintPk, treasuryAta, buyerPk, Math.round(fee * factor), decimals));
+    if (!sellerInfo) ixs.push(createAssociatedTokenAccountIx(buyerPk, sellerPk, mintPk, sellerAta, tokenProgramId));
+    if (!treasuryInfo) ixs.push(createAssociatedTokenAccountIx(buyerPk, treasuryPk, mintPk, treasuryAta, tokenProgramId));
+    ixs.push(transferCheckedIx(buyerAta, mintPk, sellerAta, buyerPk, Math.round(creatorAmount * factor), decimals, tokenProgramId));
+    ixs.push(transferCheckedIx(buyerAta, mintPk, treasuryAta, buyerPk, Math.round(fee * factor), decimals, tokenProgramId));
 
     const { blockhash, lastValidBlockHeight } = await solanaConnection.getLatestBlockhash();
     const tx = new solanaWeb3.Transaction({ feePayer: buyerPk, blockhash, lastValidBlockHeight });
@@ -1246,22 +1246,28 @@ const SAMPLA_MINT = '4JEnUAQbhkqG2cr5VYktmzh2zQoXwcMpVvusekFVpump';
 const SOLANA_RPC = 'https://mainnet.helius-rpc.com/?api-key=babc4184-6aeb-446b-a0b5-04eaff53045a';
 const TREASURY_WALLET = 'C4wchuDFyCUK97kxJ5uUgdDrrpNkBMv2ik36RZ51eJTx'; // platform fee wallet (Solflare)
 const TOKEN_PROGRAM_ID = new solanaWeb3.PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
+const TOKEN_2022_PROGRAM_ID = new solanaWeb3.PublicKey('TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb');
 const ASSOCIATED_TOKEN_PROGRAM_ID = new solanaWeb3.PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL');
 const solanaConnection = new solanaWeb3.Connection(SOLANA_RPC, 'confirmed');
 
 // @solana/spl-token has no official no-bundler browser build, so the handful
 // of instructions we need (derive ATA, create ATA, transferChecked) are built
 // by hand here directly against @solana/web3.js primitives.
+//
+// $SAMPLA's mint could be owned by either the classic Token Program or the
+// newer Token-2022 program — the ATA address and instruction program ID
+// differ depending on which one, so we detect it from the mint account
+// itself rather than assuming.
 
-function getAssociatedTokenAddress(ownerPubkey, mintPubkey) {
+function getAssociatedTokenAddress(ownerPubkey, mintPubkey, tokenProgramId) {
   const [ata] = solanaWeb3.PublicKey.findProgramAddressSync(
-    [ownerPubkey.toBuffer(), TOKEN_PROGRAM_ID.toBuffer(), mintPubkey.toBuffer()],
+    [ownerPubkey.toBuffer(), tokenProgramId.toBuffer(), mintPubkey.toBuffer()],
     ASSOCIATED_TOKEN_PROGRAM_ID
   );
   return ata;
 }
 
-function createAssociatedTokenAccountIx(payerPubkey, ownerPubkey, mintPubkey, ataPubkey) {
+function createAssociatedTokenAccountIx(payerPubkey, ownerPubkey, mintPubkey, ataPubkey, tokenProgramId) {
   return new solanaWeb3.TransactionInstruction({
     programId: ASSOCIATED_TOKEN_PROGRAM_ID,
     keys: [
@@ -1270,13 +1276,13 @@ function createAssociatedTokenAccountIx(payerPubkey, ownerPubkey, mintPubkey, at
       { pubkey: ownerPubkey, isSigner: false, isWritable: false },
       { pubkey: mintPubkey, isSigner: false, isWritable: false },
       { pubkey: solanaWeb3.SystemProgram.programId, isSigner: false, isWritable: false },
-      { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+      { pubkey: tokenProgramId, isSigner: false, isWritable: false },
     ],
     data: new Uint8Array(0)
   });
 }
 
-function transferCheckedIx(sourceAta, mintPubkey, destAta, ownerPubkey, rawAmount, decimals) {
+function transferCheckedIx(sourceAta, mintPubkey, destAta, ownerPubkey, rawAmount, decimals, tokenProgramId) {
   // Instruction 12 = TransferChecked. Layout: [12, amount:u64 LE, decimals:u8]
   const data = new Uint8Array(10);
   const view = new DataView(data.buffer);
@@ -1284,7 +1290,7 @@ function transferCheckedIx(sourceAta, mintPubkey, destAta, ownerPubkey, rawAmoun
   view.setBigUint64(1, BigInt(rawAmount), true);
   data[9] = decimals;
   return new solanaWeb3.TransactionInstruction({
-    programId: TOKEN_PROGRAM_ID,
+    programId: tokenProgramId,
     keys: [
       { pubkey: sourceAta, isSigner: false, isWritable: true },
       { pubkey: mintPubkey, isSigner: false, isWritable: false },
@@ -1295,12 +1301,15 @@ function transferCheckedIx(sourceAta, mintPubkey, destAta, ownerPubkey, rawAmoun
   });
 }
 
-let samplaDecimalsCache = null;
-async function getSamplaDecimals() {
-  if (samplaDecimalsCache != null) return samplaDecimalsCache;
+let samplaMintInfoCache = null;
+async function getSamplaMintInfo() {
+  if (samplaMintInfoCache) return samplaMintInfoCache;
   const info = await solanaConnection.getParsedAccountInfo(new solanaWeb3.PublicKey(SAMPLA_MINT));
-  samplaDecimalsCache = info?.value?.data?.parsed?.info?.decimals ?? 6;
-  return samplaDecimalsCache;
+  const decimals = info?.value?.data?.parsed?.info?.decimals ?? 6;
+  const ownerStr = info?.value?.owner?.toString();
+  const tokenProgramId = ownerStr === TOKEN_2022_PROGRAM_ID.toString() ? TOKEN_2022_PROGRAM_ID : TOKEN_PROGRAM_ID;
+  samplaMintInfoCache = { decimals, tokenProgramId };
+  return samplaMintInfoCache;
 }
 
 // Real on-chain balances — no more hardcoded "0 $SAMPLA" placeholders.
