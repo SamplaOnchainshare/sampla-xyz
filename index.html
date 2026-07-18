@@ -1200,7 +1200,7 @@ function shortAddr(a) {
 }
 
 function getSolanaProvider() {
-  if (window.backpack?.isBackpack) return window.backpack;
+  if (window.backpack?.isBackpack) return window.backpack.solana || window.backpack;
   if (window.phantom?.solana?.isPhantom) return window.phantom.solana;
   if (window.solflare?.isSolflare) return window.solflare;
   if (window.solana) return window.solana;
