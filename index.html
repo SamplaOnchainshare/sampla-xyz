@@ -1503,6 +1503,7 @@ async function connectWallet() {
     await saveProfileToDB(walletAddress, short, data.user.id);
     await loadMyProfile();
     loadAllProfiles();
+    syncPurchasedBeats();
     renderSamples();
     renderBeats();
     updateStats();
@@ -1691,10 +1692,18 @@ async function loadBeatsFromDB() {
       BEATS.length = 0;
       dbBeats.forEach(b => BEATS.push(b));
       filteredBeats = [...BEATS];
+      syncPurchasedBeats();
       renderBeats();
     }
   } catch(e) { console.log('DB load beats:', e.message); }
   updateStats();
+}
+
+// Rebuilds the "Purchased" tab from the beats we know were bought by the
+// currently connected wallet — the in-memory purchasedBeats array is
+// otherwise empty on every page load/refresh.
+function syncPurchasedBeats() {
+  purchasedBeats = walletAddress ? BEATS.filter(b => b.buyerWallet === walletAddress) : [];
 }
 
 // Save sample to Supabase — uses the real Auth session so RLS can verify ownership
@@ -1744,11 +1753,16 @@ async function saveProfileToDB(wallet, username, userId) {
 async function loadMyProfile() {
   if (!currentUserId) return;
   try {
-    const data = await sbFetch(`profiles?id=eq.${currentUserId}&select=display_name,avatar_emoji,avatar_url`);
-    if (data && data[0]) {
-      myProfile.display_name = data[0].display_name || null;
-      myProfile.avatar_emoji = data[0].avatar_emoji || null;
-      myProfile.avatar_url = data[0].avatar_url || null;
+    const { data, error } = await supabaseClient
+      .from('profiles')
+      .select('display_name,avatar_emoji,avatar_url')
+      .eq('id', currentUserId)
+      .maybeSingle();
+    if (error) throw error;
+    if (data) {
+      myProfile.display_name = data.display_name || null;
+      myProfile.avatar_emoji = data.avatar_emoji || null;
+      myProfile.avatar_url = data.avatar_url || null;
     }
   } catch(e) { console.log('loadMyProfile:', e.message); }
   updateStats();
