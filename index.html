@@ -170,6 +170,18 @@
   .wallet-btn { display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 6px; background: var(--bg3); border: 1px solid var(--border2); color: var(--text2); font-size: 12px; cursor: pointer; font-family: var(--font); transition: all 0.12s; }
   .wallet-btn:hover { color: var(--text); border-color: var(--accent); }
   .wallet-dot { width: 6px; height: 6px; border-radius: 50%; }
+  .wallet-widget { position: relative; }
+  .wallet-dropdown { position: absolute; top: calc(100% + 8px); right: 0; width: 280px; background: var(--bg2); border: 1px solid var(--border2); border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,0.4); padding: 16px; z-index: 200; display: none; }
+  .wallet-dropdown.open { display: block; }
+  .wallet-dropdown-addr { font-size: 11px; color: var(--text3); font-family: monospace; word-break: break-all; margin-bottom: 14px; padding-bottom: 14px; border-bottom: 1px solid var(--border); cursor: pointer; }
+  .wallet-dropdown-addr:hover { color: var(--text2); }
+  .wallet-token-row { display: flex; align-items: center; justify-content: space-between; padding: 6px 0; font-size: 13px; }
+  .wallet-token-row .tok-name { display: flex; align-items: center; gap: 8px; color: var(--text2); }
+  .wallet-token-row .tok-val { color: var(--text); font-weight: 600; font-family: monospace; }
+  .wallet-token-dot { width: 18px; height: 18px; border-radius: 50%; background: var(--accent2); border: 1px solid var(--accent); display: flex; align-items: center; justify-content: center; font-size: 9px; color: var(--accent); font-weight: 700; flex-shrink: 0; }
+  .wallet-dropdown-logout { width: 100%; margin-top: 14px; padding: 8px; border-radius: 6px; background: transparent; border: 1px solid var(--border2); color: var(--text2); font-size: 12px; cursor: pointer; font-family: var(--font); transition: all 0.12s; }
+  .wallet-dropdown-logout:hover { color: #ff4466; border-color: #ff4466; }
+  .wallet-dropdown-loading { font-size: 11px; color: var(--text3); text-align: center; padding: 6px 0; }
 
   /* Profile */
   .profile-header { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 20px; display: flex; align-items: center; gap: 16px; }
@@ -235,10 +247,19 @@
   <header class="header">
     <div class="logo" style="cursor:pointer" onclick="window.open('https://pump.fun/coin/4JEnUAQbhkqG2cr5VYktmzh2zQoXwcMpVvusekFVpump','_blank')" title="$SAMPLA on pump.fun">SAMPL<span>A</span></div>
     <div class="header-right">
-      <button class="wallet-btn" onclick="toggleWallet()">
-        <span class="wallet-dot" id="wallet-dot" style="background:var(--text3)"></span>
-        <span id="wallet-label">Connect wallet</span>
-      </button>
+      <div class="wallet-widget">
+        <button class="wallet-btn" onclick="onWalletBtnClick()">
+          <span class="wallet-dot" id="wallet-dot" style="background:var(--text3)"></span>
+          <span id="wallet-label">Connect wallet</span>
+        </button>
+        <div class="wallet-dropdown" id="wallet-dropdown">
+          <div class="wallet-dropdown-addr" id="wallet-dropdown-addr" onclick="copyWalletAddress()" title="Click to copy">—</div>
+          <div id="wallet-dropdown-tokens">
+            <div class="wallet-dropdown-loading">Loading balances…</div>
+          </div>
+          <button class="wallet-dropdown-logout" onclick="disconnectWallet()">Log out</button>
+        </div>
+      </div>
       <button class="btn btn-accent btn-sm" id="upload-btn" onclick="showUploadForPage()">+ Upload</button>
     </div>
   </header>
@@ -767,7 +788,7 @@ function beatCardHTML(b) {
 
 // ---- BUY FLOW ----
 function openBuyModal(id) {
-  if (!walletConnected) { toggleWallet(); return; }
+  if (!walletConnected) { connectWallet(); return; }
   const b = BEATS.find(b=>b.id===id);
   if (!b || b.sold) return;
   pendingBeatId = id;
@@ -955,11 +976,11 @@ function switchProfileTab(tab, el) {
 
 // ---- MODALS ----
 function showUpload() {
-  if(!walletConnected){toggleWallet();return;}
+  if(!walletConnected){connectWallet();return;}
   document.getElementById('upload-modal').style.display='flex';
 }
 function showBeatUpload() {
-  if(!walletConnected){toggleWallet();return;}
+  if(!walletConnected){connectWallet();return;}
   document.getElementById('beat-modal').style.display='flex';
 }
 function hideModal(id,event) {
@@ -1070,25 +1091,109 @@ document.addEventListener('DOMContentLoaded',()=>{
 });
 
 // ---- WALLET ----
-async function toggleWallet() {
+// ---- WALLET BUTTON: connect if logged out, open dropdown if logged in ----
+function onWalletBtnClick() {
+  if (walletConnected) {
+    toggleWalletDropdown();
+  } else {
+    connectWallet();
+  }
+}
+
+function toggleWalletDropdown(forceClose) {
+  const dropdown = document.getElementById('wallet-dropdown');
+  const isOpen = dropdown.classList.contains('open');
+  if (forceClose || isOpen) {
+    dropdown.classList.remove('open');
+    document.removeEventListener('click', closeWalletDropdownOnOutsideClick);
+  } else {
+    document.getElementById('wallet-dropdown-addr').textContent = walletAddress || '—';
+    dropdown.classList.add('open');
+    fetchWalletBalances();
+    // Close when clicking outside — deferred so this same click doesn't immediately close it
+    setTimeout(() => document.addEventListener('click', closeWalletDropdownOnOutsideClick), 0);
+  }
+}
+
+function closeWalletDropdownOnOutsideClick(e) {
+  const widget = document.querySelector('.wallet-widget');
+  if (widget && !widget.contains(e.target)) toggleWalletDropdown(true);
+}
+
+function copyWalletAddress() {
+  if (!walletAddress) return;
+  navigator.clipboard.writeText(walletAddress);
+  showToast('Wallet address copied ✓');
+}
+
+const SAMPLA_MINT = '4JEnUAQbhkqG2cr5VYktmzh2zQoXwcMpVvusekFVpump';
+const SOLANA_RPC = 'https://api.mainnet-beta.solana.com';
+
+// Real on-chain balances — no more hardcoded "0 $SAMPLA" placeholders.
+async function fetchWalletBalances() {
+  const tokensEl = document.getElementById('wallet-dropdown-tokens');
+  if (!walletAddress) return;
+  tokensEl.innerHTML = `<div class="wallet-dropdown-loading">Loading balances…</div>`;
+  try {
+    const [solRes, splRes] = await Promise.all([
+      fetch(SOLANA_RPC, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'getBalance', params: [walletAddress] })
+      }).then(r => r.json()),
+      fetch(SOLANA_RPC, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0', id: 1, method: 'getTokenAccountsByOwner',
+          params: [walletAddress, { mint: SAMPLA_MINT }, { encoding: 'jsonParsed' }]
+        })
+      }).then(r => r.json())
+    ]);
+
+    const solBalance = solRes?.result?.value != null ? (solRes.result.value / 1e9) : null;
+    const splAccounts = splRes?.result?.value || [];
+    const samplaBalance = splAccounts.length
+      ? splAccounts.reduce((sum, acc) => sum + (acc.account.data.parsed.info.tokenAmount.uiAmount || 0), 0)
+      : 0;
+
+    tokensEl.innerHTML = `
+      <div class="wallet-token-row">
+        <span class="tok-name"><span class="wallet-token-dot">◎</span>SOL</span>
+        <span class="tok-val">${solBalance != null ? solBalance.toFixed(3) : '—'}</span>
+      </div>
+      <div class="wallet-token-row">
+        <span class="tok-name"><span class="wallet-token-dot" style="color:var(--accent);border-color:var(--accent)">S</span>$SAMPLA</span>
+        <span class="tok-val">${samplaBalance.toLocaleString(undefined,{maximumFractionDigits:2})}</span>
+      </div>`;
+
+    // Keep the profile page balance widget in sync with the same real number
+    const profileBalEl = document.querySelector('.sampla-bal-val');
+    if (profileBalEl) profileBalEl.innerHTML = `${samplaBalance.toLocaleString(undefined,{maximumFractionDigits:2})} <span style="font-size:14px;font-weight:400;color:var(--text2)">$SAMPLA</span>`;
+  } catch (e) {
+    tokensEl.innerHTML = `<div class="wallet-dropdown-loading">Couldn't load balances</div>`;
+    console.log('Balance fetch error:', e.message);
+  }
+}
+
+async function disconnectWallet() {
+  toggleWalletDropdown(true);
   const dot = document.getElementById('wallet-dot');
   const label = document.getElementById('wallet-label');
+  try {
+    await supabaseClient.auth.signOut();
+    if (window.solana && window.solana.disconnect) await window.solana.disconnect();
+  } catch(e) {}
+  walletConnected = false;
+  walletAddress = null;
+  dot.style.background = 'var(--text3)';
+  label.textContent = 'Connect wallet';
+  renderSamples();
+  renderBeats();
+  updateStats();
+}
 
-  if(walletConnected) {
-    // Disconnect — sign out of the real Supabase Auth session too
-    try {
-      await supabaseClient.auth.signOut();
-      if(window.solana && window.solana.disconnect) await window.solana.disconnect();
-    } catch(e) {}
-    walletConnected = false;
-    walletAddress = null;
-    dot.style.background = 'var(--text3)';
-    label.textContent = 'Connect wallet';
-    renderSamples();
-    renderBeats();
-    updateStats();
-    return;
-  }
+async function connectWallet() {
+  const dot = document.getElementById('wallet-dot');
+  const label = document.getElementById('wallet-label');
 
   // Try Phantom
   const provider = window.solana || window.phantom?.solana;
