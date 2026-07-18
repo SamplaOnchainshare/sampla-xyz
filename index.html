@@ -1127,64 +1127,56 @@ function copyWalletAddress() {
 }
 
 const SAMPLA_MINT = '4JEnUAQbhkqG2cr5VYktmzh2zQoXwcMpVvusekFVpump';
-const SOLANA_RPC = 'https://api.mainnet-beta.solana.com';
+const SOLANA_RPC = 'https://solana-rpc.publicnode.com';
 
 // Real on-chain balances — no more hardcoded "0 $SAMPLA" placeholders.
-async function fetchWalletBalances(isRetry) {
+async function rpcCall(method, params) {
+  const res = await fetch(SOLANA_RPC, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params })
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const json = await res.json();
+  if (json.error) throw new Error(json.error.message || 'RPC error');
+  return json.result;
+}
+
+async function fetchWalletBalances() {
   const tokensEl = document.getElementById('wallet-dropdown-tokens');
   if (!walletAddress) return;
-  if (!isRetry) tokensEl.innerHTML = `<div class="wallet-dropdown-loading">Loading balances…</div>`;
-  let solErrorDetail = '';
-  try {
-    // Single batched JSON-RPC call — more reliable than two separate requests,
-    // which could hit the public RPC's rate limit independently.
-    const res = await fetch(SOLANA_RPC, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify([
-        { jsonrpc: '2.0', id: 'sol', method: 'getBalance', params: [walletAddress] },
-        { jsonrpc: '2.0', id: 'spl', method: 'getTokenAccountsByOwner',
-          params: [walletAddress, { mint: SAMPLA_MINT }, { encoding: 'jsonParsed' }] }
-      ])
-    });
-    if (!res.ok) solErrorDetail = `HTTP ${res.status}`;
-    const batch = await res.json();
-    const solRes = Array.isArray(batch) ? batch.find(r => r.id === 'sol') : null;
-    const splRes = Array.isArray(batch) ? batch.find(r => r.id === 'spl') : null;
+  tokensEl.innerHTML = `<div class="wallet-dropdown-loading">Loading balances…</div>`;
 
-    if (solRes?.error) { solErrorDetail = solRes.error.message || JSON.stringify(solRes.error); console.log('getBalance RPC error:', solErrorDetail); }
-    if (!Array.isArray(batch)) { solErrorDetail = 'Non-batch response: ' + JSON.stringify(batch).slice(0,120); console.log('Unexpected RPC response:', batch); }
-    if (splRes?.error) console.log('getTokenAccountsByOwner RPC error:', splRes.error.message);
+  const [solOutcome, splOutcome] = await Promise.allSettled([
+    rpcCall('getBalance', [walletAddress]),
+    rpcCall('getTokenAccountsByOwner', [walletAddress, { mint: SAMPLA_MINT }, { encoding: 'jsonParsed' }])
+  ]);
 
-    const solBalance = solRes?.result?.value != null ? (solRes.result.value / 1e9) : null;
-    const splAccounts = splRes?.result?.value || [];
-    const samplaBalance = splAccounts.length
-      ? splAccounts.reduce((sum, acc) => sum + (acc.account.data.parsed.info.tokenAmount.uiAmount || 0), 0)
-      : 0;
+  const solBalance = solOutcome.status === 'fulfilled' && solOutcome.value?.value != null
+    ? solOutcome.value.value / 1e9 : null;
+  const splAccounts = splOutcome.status === 'fulfilled' ? (splOutcome.value?.value || []) : null;
+  const samplaBalance = splAccounts
+    ? splAccounts.reduce((sum, acc) => sum + (acc.account.data.parsed.info.tokenAmount.uiAmount || 0), 0)
+    : null;
 
-    // If the SOL balance didn't come back (transient RPC hiccup), retry once silently.
-    if (solBalance == null && !isRetry) {
-      setTimeout(() => fetchWalletBalances(true), 800);
-      return;
-    }
+  if (solOutcome.status === 'rejected') console.log('getBalance failed:', solOutcome.reason.message);
+  if (splOutcome.status === 'rejected') console.log('getTokenAccountsByOwner failed:', splOutcome.reason.message);
 
-    tokensEl.innerHTML = `
-      <div class="wallet-token-row">
-        <span class="tok-name"><span class="wallet-token-dot">◎</span>SOL</span>
-        <span class="tok-val">${solBalance != null ? solBalance.toFixed(3) : '—'}</span>
-      </div>
-      <div class="wallet-token-row">
-        <span class="tok-name"><span class="wallet-token-dot" style="color:var(--accent);border-color:var(--accent)">S</span>$SAMPLA</span>
-        <span class="tok-val">${samplaBalance.toLocaleString(undefined,{maximumFractionDigits:2})}</span>
-      </div>
-      ${solBalance == null ? `<div class="wallet-dropdown-loading" style="cursor:pointer;text-decoration:underline" onclick="fetchWalletBalances()">SOL failed${solErrorDetail ? ': '+solErrorDetail : ''} — tap to retry</div>` : ''}`;
+  tokensEl.innerHTML = `
+    <div class="wallet-token-row">
+      <span class="tok-name"><span class="wallet-token-dot">◎</span>SOL</span>
+      <span class="tok-val">${solBalance != null ? solBalance.toFixed(3) : '—'}</span>
+    </div>
+    <div class="wallet-token-row">
+      <span class="tok-name"><span class="wallet-token-dot" style="color:var(--accent);border-color:var(--accent)">S</span>$SAMPLA</span>
+      <span class="tok-val">${samplaBalance != null ? samplaBalance.toLocaleString(undefined,{maximumFractionDigits:2}) : '—'}</span>
+    </div>
+    ${solOutcome.status === 'rejected' || splOutcome.status === 'rejected'
+      ? `<div class="wallet-dropdown-loading" style="cursor:pointer;text-decoration:underline" onclick="fetchWalletBalances()">${solOutcome.status === 'rejected' ? 'SOL: '+solOutcome.reason.message+'. ' : ''}${splOutcome.status === 'rejected' ? '$SAMPLA: '+splOutcome.reason.message+'. ' : ''}Tap to retry</div>`
+      : ''}`;
 
-    // Keep the profile page balance widget in sync with the same real number
-    const profileBalEl = document.querySelector('.sampla-bal-val');
-    if (profileBalEl) profileBalEl.innerHTML = `${samplaBalance.toLocaleString(undefined,{maximumFractionDigits:2})} <span style="font-size:14px;font-weight:400;color:var(--text2)">$SAMPLA</span>`;
-  } catch (e) {
-    tokensEl.innerHTML = `<div class="wallet-dropdown-loading" style="cursor:pointer;text-decoration:underline" onclick="fetchWalletBalances()">Couldn't load balances: ${e.message} — tap to retry</div>`;
-    console.log('Balance fetch error:', e.message);
-  }
+  // Keep the profile page balance widget in sync with the same real number
+  const profileBalEl = document.querySelector('.sampla-bal-val');
+  if (profileBalEl && samplaBalance != null) profileBalEl.innerHTML = `${samplaBalance.toLocaleString(undefined,{maximumFractionDigits:2})} <span style="font-size:14px;font-weight:400;color:var(--text2)">$SAMPLA</span>`;
 }
 
 async function disconnectWallet() {
