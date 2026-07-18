@@ -1134,6 +1134,7 @@ async function fetchWalletBalances(isRetry) {
   const tokensEl = document.getElementById('wallet-dropdown-tokens');
   if (!walletAddress) return;
   if (!isRetry) tokensEl.innerHTML = `<div class="wallet-dropdown-loading">Loading balances…</div>`;
+  let solErrorDetail = '';
   try {
     // Single batched JSON-RPC call — more reliable than two separate requests,
     // which could hit the public RPC's rate limit independently.
@@ -1145,11 +1146,13 @@ async function fetchWalletBalances(isRetry) {
           params: [walletAddress, { mint: SAMPLA_MINT }, { encoding: 'jsonParsed' }] }
       ])
     });
+    if (!res.ok) solErrorDetail = `HTTP ${res.status}`;
     const batch = await res.json();
-    const solRes = batch.find(r => r.id === 'sol');
-    const splRes = batch.find(r => r.id === 'spl');
+    const solRes = Array.isArray(batch) ? batch.find(r => r.id === 'sol') : null;
+    const splRes = Array.isArray(batch) ? batch.find(r => r.id === 'spl') : null;
 
-    if (solRes?.error) console.log('getBalance RPC error:', solRes.error.message);
+    if (solRes?.error) { solErrorDetail = solRes.error.message || JSON.stringify(solRes.error); console.log('getBalance RPC error:', solErrorDetail); }
+    if (!Array.isArray(batch)) { solErrorDetail = 'Non-batch response: ' + JSON.stringify(batch).slice(0,120); console.log('Unexpected RPC response:', batch); }
     if (splRes?.error) console.log('getTokenAccountsByOwner RPC error:', splRes.error.message);
 
     const solBalance = solRes?.result?.value != null ? (solRes.result.value / 1e9) : null;
@@ -1173,13 +1176,13 @@ async function fetchWalletBalances(isRetry) {
         <span class="tok-name"><span class="wallet-token-dot" style="color:var(--accent);border-color:var(--accent)">S</span>$SAMPLA</span>
         <span class="tok-val">${samplaBalance.toLocaleString(undefined,{maximumFractionDigits:2})}</span>
       </div>
-      ${solBalance == null ? `<div class="wallet-dropdown-loading" style="cursor:pointer;text-decoration:underline" onclick="fetchWalletBalances()">SOL balance failed to load — tap to retry</div>` : ''}`;
+      ${solBalance == null ? `<div class="wallet-dropdown-loading" style="cursor:pointer;text-decoration:underline" onclick="fetchWalletBalances()">SOL failed${solErrorDetail ? ': '+solErrorDetail : ''} — tap to retry</div>` : ''}`;
 
     // Keep the profile page balance widget in sync with the same real number
     const profileBalEl = document.querySelector('.sampla-bal-val');
     if (profileBalEl) profileBalEl.innerHTML = `${samplaBalance.toLocaleString(undefined,{maximumFractionDigits:2})} <span style="font-size:14px;font-weight:400;color:var(--text2)">$SAMPLA</span>`;
   } catch (e) {
-    tokensEl.innerHTML = `<div class="wallet-dropdown-loading" style="cursor:pointer;text-decoration:underline" onclick="fetchWalletBalances()">Couldn't load balances — tap to retry</div>`;
+    tokensEl.innerHTML = `<div class="wallet-dropdown-loading" style="cursor:pointer;text-decoration:underline" onclick="fetchWalletBalances()">Couldn't load balances: ${e.message} — tap to retry</div>`;
     console.log('Balance fetch error:', e.message);
   }
 }
