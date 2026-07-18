@@ -1292,12 +1292,23 @@ window.addEventListener('load', async () => {
   try {
     const { data: { session } } = await supabaseClient.auth.getSession();
     const provider = window.solana || window.phantom?.solana;
-    if (session && provider && provider.publicKey) {
-      walletAddress = provider.publicKey.toString();
-      walletConnected = true;
-      const short = walletAddress.slice(0,4) + '...' + walletAddress.slice(-4);
-      document.getElementById('wallet-dot').style.background = 'var(--accent)';
-      document.getElementById('wallet-label').textContent = short;
+
+    if (session && provider) {
+      // Phantom doesn't expose publicKey after a page reload unless we
+      // silently re-request the connection for already-trusted sites.
+      try {
+        const resp = await provider.connect({ onlyIfTrusted: true });
+        walletAddress = resp.publicKey.toString();
+        walletConnected = true;
+        const short = walletAddress.slice(0,4) + '...' + walletAddress.slice(-4);
+        document.getElementById('wallet-dot').style.background = 'var(--accent)';
+        document.getElementById('wallet-label').textContent = short;
+      } catch (reconnectErr) {
+        // Wallet no longer trusts this site (or is locked) — sign out of
+        // the stale Supabase session so state stays in sync.
+        console.log('Silent wallet reconnect failed:', reconnectErr.message);
+        await supabaseClient.auth.signOut();
+      }
     }
   } catch(e) { console.log('Session restore:', e.message); }
 
