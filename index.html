@@ -547,8 +547,8 @@
       <div class="nft-confirm-row"><span class="label" style="font-weight:600">Total you pay</span><span class="val accent" style="font-size:16px" id="buy-total-display">—</span></div>
     </div>
     <div style="background:var(--bg3);border:1px solid rgba(138,43,226,0.2);border-radius:8px;padding:12px;margin-top:14px;font-size:12px;color:var(--text2);line-height:1.6">
-      <span class="badge badge-nft" style="margin-bottom:6px;display:inline-flex">On-chain NFT</span><br>
-      After purchase, an exclusive licence NFT is minted to your wallet. You own this beat — no one else can buy it.
+      <span class="badge badge-nft" style="margin-bottom:6px;display:inline-flex">On-chain payment</span><br>
+      This sends a real $SAMPLA transfer on Solana directly to the creator's wallet (minus the platform fee). You'll be asked to confirm the transaction in your wallet.
     </div>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="hideModal('buy-modal')">Cancel</button>
@@ -608,6 +608,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://unpkg.com/@solana/web3.js@1/lib/index.iife.min.js"></script>
 <script>
 const FEE = 0.033;
 const COLORS = ['#1a1a2e','#16213e','#0f3460','#1a1a2e','#2d1b4e','#1e3a2f'];
@@ -802,17 +803,89 @@ function openBuyModal(id) {
   document.getElementById('buy-modal').style.display = 'flex';
 }
 
-function confirmBuy() {
+async function confirmBuy() {
   const b = BEATS.find(b=>b.id===pendingBeatId);
   if (!b) return;
-  b.sold = true;
-  b.soldTo = '7xKp...m4Rq';
-  purchasedBeats.push(b);
-  hideModal('buy-modal');
-  renderBeats();
-  setTimeout(()=>{
-    alert(`🎉 Beat purchased!\n\n"${b.title}" is now yours.\n\nNFT licence minted to 7xKp...m4Rq\n\n(In production: Solana NFT mint via Metaplex)`);
-  }, 100);
+  if (b.sold) { alert('This beat was just sold to someone else.'); hideModal('buy-modal'); renderBeats(); return; }
+  if (!b.sellerWallet) { alert("This beat is missing the seller's wallet address and can't be purchased yet."); return; }
+  if (b.sellerWallet === walletAddress) { alert("You can't buy your own beat."); return; }
+
+  const provider = window.solana || window.phantom?.solana;
+  if (!provider) { alert('Phantom wallet not found.'); return; }
+
+  const btn = document.getElementById('confirm-buy-btn');
+  const originalText = btn.textContent;
+  btn.disabled = true;
+
+  try {
+    btn.textContent = 'Preparing transaction…';
+    const decimals = await getSamplaDecimals();
+    const fee = Math.round(b.price * FEE);
+    const creatorAmount = b.price - fee;
+    const factor = 10 ** decimals;
+
+    const mintPk = new solanaWeb3.PublicKey(SAMPLA_MINT);
+    const buyerPk = new solanaWeb3.PublicKey(walletAddress);
+    const sellerPk = new solanaWeb3.PublicKey(b.sellerWallet);
+    const treasuryPk = new solanaWeb3.PublicKey(TREASURY_WALLET);
+
+    const buyerAta = getAssociatedTokenAddress(buyerPk, mintPk);
+    const sellerAta = getAssociatedTokenAddress(sellerPk, mintPk);
+    const treasuryAta = getAssociatedTokenAddress(treasuryPk, mintPk);
+
+    const [buyerInfo, sellerInfo, treasuryInfo] = await Promise.all([
+      solanaConnection.getAccountInfo(buyerAta),
+      solanaConnection.getAccountInfo(sellerAta),
+      solanaConnection.getAccountInfo(treasuryAta),
+    ]);
+
+    if (!buyerInfo) throw new Error("You don't hold any $SAMPLA yet — buy some on pump.fun first.");
+
+    const ixs = [];
+    if (!sellerInfo) ixs.push(createAssociatedTokenAccountIx(buyerPk, sellerPk, mintPk, sellerAta));
+    if (!treasuryInfo) ixs.push(createAssociatedTokenAccountIx(buyerPk, treasuryPk, mintPk, treasuryAta));
+    ixs.push(transferCheckedIx(buyerAta, mintPk, sellerAta, buyerPk, Math.round(creatorAmount * factor), decimals));
+    ixs.push(transferCheckedIx(buyerAta, mintPk, treasuryAta, buyerPk, Math.round(fee * factor), decimals));
+
+    const { blockhash, lastValidBlockHeight } = await solanaConnection.getLatestBlockhash();
+    const tx = new solanaWeb3.Transaction({ feePayer: buyerPk, blockhash, lastValidBlockHeight });
+    ixs.forEach(ix => tx.add(ix));
+
+    btn.textContent = 'Confirm in wallet…';
+    const { signature } = await provider.signAndSendTransaction(tx);
+
+    btn.textContent = 'Confirming on-chain…';
+    const confirmation = await solanaConnection.confirmTransaction({ signature, blockhash, lastValidBlockHeight }, 'confirmed');
+    if (confirmation?.value?.err) throw new Error('Transaction failed on-chain: ' + JSON.stringify(confirmation.value.err));
+
+    // Persist the sale. RLS only allows this exact transition: unsold -> sold with a buyer set.
+    try {
+      const { error } = await supabaseClient.from('beats')
+        .update({ is_sold: true, buyer_wallet: walletAddress })
+        .eq('id', b.id).eq('is_sold', false);
+      if (error) console.log('DB update after purchase failed:', error.message);
+    } catch (dbErr) { console.log('DB update after purchase failed:', dbErr.message); }
+
+    b.sold = true;
+    b.soldTo = walletAddress.slice(0,4)+'...'+walletAddress.slice(-4);
+    purchasedBeats.push(b);
+    hideModal('buy-modal');
+    renderBeats();
+    updateStats();
+
+    const shortSig = signature.slice(0,8)+'...'+signature.slice(-8);
+    setTimeout(() => {
+      if (confirm(`🎉 Purchase complete!\n\n"${b.title}"\n${creatorAmount.toLocaleString()} $SAMPLA → creator\n${fee.toLocaleString()} $SAMPLA → platform fee\n\nTx: ${shortSig}\n\nOpen on Solscan?`)) {
+        window.open('https://solscan.io/tx/' + signature, '_blank');
+      }
+    }, 100);
+  } catch (e) {
+    console.log('Purchase failed:', e);
+    alert('Purchase failed: ' + (e.message || 'Unknown error'));
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalText;
+  }
 }
 
 // ---- PLAY (real HTML5 audio — was a fake progress-bar animation before) ----
@@ -1057,7 +1130,7 @@ async function submitBeat() {
     key: document.getElementById('beat-key').value||'—',
     genre: document.getElementById('beat-genre').value,
     price, tags: document.getElementById('beat-tags').value.split(',').map(t=>t.trim()).filter(Boolean),
-    sold:false, emoji:'🎵', color:'#1a1a2e', file_url:''
+    sold:false, sellerWallet: walletAddress, emoji:'🎵', color:'#1a1a2e', file_url:''
   };
   try {
     newBeat.file_url = await uploadAudioFile(selectedBeatFile, 'beats');
@@ -1128,6 +1201,64 @@ function copyWalletAddress() {
 
 const SAMPLA_MINT = '4JEnUAQbhkqG2cr5VYktmzh2zQoXwcMpVvusekFVpump';
 const SOLANA_RPC = 'https://mainnet.helius-rpc.com/?api-key=babc4184-6aeb-446b-a0b5-04eaff53045a';
+const TREASURY_WALLET = 'C4wchuDFyCUK97kxJ5uUgdDrrpNkBMv2ik36RZ51eJTx'; // platform fee wallet (Solflare)
+const TOKEN_PROGRAM_ID = new solanaWeb3.PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
+const ASSOCIATED_TOKEN_PROGRAM_ID = new solanaWeb3.PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL');
+const solanaConnection = new solanaWeb3.Connection(SOLANA_RPC, 'confirmed');
+
+// @solana/spl-token has no official no-bundler browser build, so the handful
+// of instructions we need (derive ATA, create ATA, transferChecked) are built
+// by hand here directly against @solana/web3.js primitives.
+
+function getAssociatedTokenAddress(ownerPubkey, mintPubkey) {
+  const [ata] = solanaWeb3.PublicKey.findProgramAddressSync(
+    [ownerPubkey.toBuffer(), TOKEN_PROGRAM_ID.toBuffer(), mintPubkey.toBuffer()],
+    ASSOCIATED_TOKEN_PROGRAM_ID
+  );
+  return ata;
+}
+
+function createAssociatedTokenAccountIx(payerPubkey, ownerPubkey, mintPubkey, ataPubkey) {
+  return new solanaWeb3.TransactionInstruction({
+    programId: ASSOCIATED_TOKEN_PROGRAM_ID,
+    keys: [
+      { pubkey: payerPubkey, isSigner: true, isWritable: true },
+      { pubkey: ataPubkey, isSigner: false, isWritable: true },
+      { pubkey: ownerPubkey, isSigner: false, isWritable: false },
+      { pubkey: mintPubkey, isSigner: false, isWritable: false },
+      { pubkey: solanaWeb3.SystemProgram.programId, isSigner: false, isWritable: false },
+      { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+    ],
+    data: new Uint8Array(0)
+  });
+}
+
+function transferCheckedIx(sourceAta, mintPubkey, destAta, ownerPubkey, rawAmount, decimals) {
+  // Instruction 12 = TransferChecked. Layout: [12, amount:u64 LE, decimals:u8]
+  const data = new Uint8Array(10);
+  const view = new DataView(data.buffer);
+  data[0] = 12;
+  view.setBigUint64(1, BigInt(rawAmount), true);
+  data[9] = decimals;
+  return new solanaWeb3.TransactionInstruction({
+    programId: TOKEN_PROGRAM_ID,
+    keys: [
+      { pubkey: sourceAta, isSigner: false, isWritable: true },
+      { pubkey: mintPubkey, isSigner: false, isWritable: false },
+      { pubkey: destAta, isSigner: false, isWritable: true },
+      { pubkey: ownerPubkey, isSigner: true, isWritable: false },
+    ],
+    data
+  });
+}
+
+let samplaDecimalsCache = null;
+async function getSamplaDecimals() {
+  if (samplaDecimalsCache != null) return samplaDecimalsCache;
+  const info = await solanaConnection.getParsedAccountInfo(new solanaWeb3.PublicKey(SAMPLA_MINT));
+  samplaDecimalsCache = info?.value?.data?.parsed?.info?.decimals ?? 6;
+  return samplaDecimalsCache;
+}
 
 // Real on-chain balances — no more hardcoded "0 $SAMPLA" placeholders.
 async function rpcCall(method, params) {
@@ -1416,6 +1547,7 @@ async function loadBeatsFromDB() {
         price: b.price || 500,
         tags: b.tags ? b.tags.split(',').map(t => t.trim()) : [],
         sold: b.is_sold || false, soldTo: b.buyer_wallet || null,
+        sellerWallet: b.seller_wallet || null,
         emoji: '🎵', color: '#1a1a2e', file_url: b.file_url
       }));
       BEATS.length = 0;
