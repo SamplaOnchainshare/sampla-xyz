@@ -1399,9 +1399,12 @@ async function connectWallet() {
 
     // 2) Ask the wallet to sign a SIWS message and let Supabase Auth verify it
     //    -> this creates a REAL, server-verified Auth session (auth.uid())
+    //    IMPORTANT: without an explicit `wallet`, Supabase silently defaults
+    //    to window.solana, which may not be the wallet the user picked above.
     const { data, error } = await supabaseClient.auth.signInWithWeb3({
       chain: 'solana',
-      statement: 'Sign in to Sampla to manage your samples, beats and licences.'
+      statement: 'Sign in to Sampla to manage your samples, beats and licences.',
+      wallet: provider
     });
     if (error) throw error;
 
