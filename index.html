@@ -1131,14 +1131,24 @@ const SOLANA_RPC = 'https://solana-rpc.publicnode.com';
 
 // Real on-chain balances — no more hardcoded "0 $SAMPLA" placeholders.
 async function rpcCall(method, params) {
-  const res = await fetch(SOLANA_RPC, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params })
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const json = await res.json();
-  if (json.error) throw new Error(json.error.message || 'RPC error');
-  return json.result;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 8000);
+  try {
+    const res = await fetch(SOLANA_RPC, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
+      signal: controller.signal
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+    if (json.error) throw new Error(json.error.message || 'RPC error');
+    return json.result;
+  } catch (e) {
+    if (e.name === 'AbortError') throw new Error('Timed out (8s)');
+    throw e;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 async function fetchWalletBalances() {
