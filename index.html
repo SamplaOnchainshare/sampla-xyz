@@ -872,7 +872,8 @@ async function confirmBuy() {
     } catch (dbErr) { console.log('DB update after purchase failed:', dbErr.message); }
 
     b.sold = true;
-    b.soldTo = walletAddress.slice(0,4)+'...'+walletAddress.slice(-4);
+    b.buyerWallet = walletAddress;
+    b.soldTo = shortAddr(walletAddress);
     purchasedBeats.push(b);
     hideModal('buy-modal');
     renderBeats();
@@ -937,7 +938,9 @@ function playBeat(id) {
     id: 'beat-'+b.id,
     name: b.title+' — preview',
     artist: b.artist+' · '+b.bpm+' BPM · '+b.key,
-    file_url: b.file_url
+    file_url: b.file_url,
+    isBeat: true,
+    beatId: b.id
   });
 }
 
@@ -973,9 +976,28 @@ function downloadSample(id) {
   if (!s.file_url) { alert('No audio file available for this sample yet.'); return; }
   window.open(s.file_url, '_blank');
 }
+
+// Beats are exclusive, one-buyer licences — only the buyer (or the seller,
+// for their own records) can download the full file. Everyone else only
+// gets the in-browser preview player, never the raw file URL.
+function canDownloadBeat(b) {
+  if (!b || !walletAddress) return false;
+  return walletAddress === b.sellerWallet || walletAddress === b.buyerWallet;
+}
+
 function downloadCurrent() {
-  if (currentSample && currentSample.file_url) window.open(currentSample.file_url, '_blank');
-  else if (currentSample) alert('No audio file available to download.');
+  if (!currentSample) return;
+  if (!currentSample.file_url) { alert('No audio file available to download.'); return; }
+  if (currentSample.isBeat) {
+    const b = BEATS.find(x => x.id === currentSample.beatId);
+    if (!b) return;
+    if (!walletAddress) { alert('Connect your wallet to check purchase status.'); return; }
+    if (!canDownloadBeat(b)) {
+      alert(b.sold ? "This is an exclusive beat that's already sold to someone else." : 'Buy this beat first to unlock the full download.');
+      return;
+    }
+  }
+  window.open(currentSample.file_url, '_blank');
 }
 
 // ---- FILTERS ----
@@ -1173,6 +1195,10 @@ document.addEventListener('DOMContentLoaded',()=>{
 // instead of only ever looking for Phantom. window.solana can be claimed by
 // whichever extension loaded/attached last, so we check vendor-specific
 // globals first and only fall back to the generic window.solana.
+function shortAddr(a) {
+  return a ? a.slice(0,4) + '...' + a.slice(-4) : '';
+}
+
 function getSolanaProvider() {
   if (window.backpack?.isBackpack) return window.backpack;
   if (window.phantom?.solana?.isPhantom) return window.phantom.solana;
@@ -1564,7 +1590,9 @@ async function loadBeatsFromDB() {
         bpm: b.bpm || 140, key: b.key || '—', genre: b.genre || 'trap',
         price: b.price || 500,
         tags: b.tags ? b.tags.split(',').map(t => t.trim()) : [],
-        sold: b.is_sold || false, soldTo: b.buyer_wallet || null,
+        sold: b.is_sold || false,
+        buyerWallet: b.buyer_wallet || null,
+        soldTo: b.buyer_wallet ? shortAddr(b.buyer_wallet) : null,
         sellerWallet: b.seller_wallet || null,
         emoji: '🎵', color: '#1a1a2e', file_url: b.file_url
       }));
