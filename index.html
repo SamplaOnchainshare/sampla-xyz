@@ -1877,11 +1877,13 @@ async function saveProfileCustomization() {
       avatarEmoji = null;
     }
 
-    const { error } = await supabaseClient.from('profiles').update({
+    const { error } = await supabaseClient.from('profiles').upsert({
+      id: currentUserId,
+      wallet_address: walletAddress,
       display_name: name || null,
       avatar_emoji: avatarUrl ? null : avatarEmoji,
       avatar_url: avatarUrl || null
-    }).eq('id', currentUserId);
+    }, { onConflict: 'id' });
     if (error) throw error;
 
     myProfile.display_name = name || null;
@@ -1909,7 +1911,21 @@ window.addEventListener('load', async () => {
       // silently re-request the connection for already-trusted sites.
       try {
         const resp = await provider.connect({ onlyIfTrusted: true });
-        walletAddress = resp.publicKey.toString();
+        const reconnectedWallet = resp.publicKey.toString();
+
+        // Guard against a stale session belonging to a *different* wallet
+        // than the one currently connected (e.g. the user switched wallets
+        // or accounts since the session was created). Trusting session.user.id
+        // blindly here would silently attribute all writes to the wrong identity.
+        const expectedSub = 'web3:solana:' + reconnectedWallet;
+        const sessionSub = session.user?.user_metadata?.sub;
+        if (sessionSub && sessionSub !== expectedSub) {
+          console.log('Session/wallet mismatch on restore — signing out stale session.');
+          await supabaseClient.auth.signOut();
+          throw new Error('Stored session belongs to a different wallet');
+        }
+
+        walletAddress = reconnectedWallet;
         walletConnected = true;
         currentUserId = session.user.id;
         const short = walletAddress.slice(0,4) + '...' + walletAddress.slice(-4);
@@ -1917,8 +1933,9 @@ window.addEventListener('load', async () => {
         document.getElementById('wallet-label').textContent = short;
         await loadMyProfile();
       } catch (reconnectErr) {
-        // Wallet no longer trusts this site (or is locked) — sign out of
-        // the stale Supabase session so state stays in sync.
+        // Wallet no longer trusts this site (or is locked), or belonged to a
+        // different wallet — sign out of the stale Supabase session so state
+        // stays in sync. The user just needs to click "Connect wallet" again.
         console.log('Silent wallet reconnect failed:', reconnectErr.message);
         await supabaseClient.auth.signOut();
       }
