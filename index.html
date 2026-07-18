@@ -300,9 +300,9 @@
             <div class="token-banner-text">Hold <strong>$SAMPLA</strong> to unlock premium packs and buy beats on the marketplace. <a href="#" style="color:var(--accent);text-decoration:none">Buy $SAMPLA →</a></div>
           </div>
           <div class="stats-row">
-            <div class="stat-card"><div class="stat-val">2,418</div><div class="stat-label">Samples available</div></div>
-            <div class="stat-card"><div class="stat-val">347</div><div class="stat-label">Creators</div></div>
-            <div class="stat-card"><div class="stat-val">89k</div><div class="stat-label">Downloads</div></div>
+            <div class="stat-card"><div class="stat-val" id="stat-samples">—</div><div class="stat-label">Samples available</div></div>
+            <div class="stat-card"><div class="stat-val" id="stat-creators">—</div><div class="stat-label">Creators</div></div>
+            <div class="stat-card"><div class="stat-val" id="stat-beats">—</div><div class="stat-label">Beats listed</div></div>
             <div class="stat-card"><div class="stat-val" style="color:var(--accent)">$SAMPLA</div><div class="stat-label">Platform token</div></div>
           </div>
           <div class="filters">
@@ -355,15 +355,14 @@
       <div id="page-profile" class="page-view">
         <div class="page" style="padding-bottom:80px">
           <div class="profile-header">
-            <div class="avatar">ZS</div>
+            <div class="avatar" id="profile-avatar">—</div>
             <div>
-              <div class="profile-name">zsolaa.wtf</div>
-              <div class="profile-addr">7xKp...m4Rq</div>
+              <div class="profile-name" id="profile-name-el">Not connected</div>
+              <div class="profile-addr" id="profile-addr-el"></div>
               <div class="profile-stats">
-                <div class="profile-stat"><strong>12</strong> uploads</div>
-                <div class="profile-stat"><strong>1.2k</strong> downloads</div>
-                <div class="profile-stat"><strong>2</strong> beats sold</div>
-                <div class="profile-stat"><strong>4.8 ★</strong> rating</div>
+                <div class="profile-stat"><strong id="profile-uploads-stat">0</strong> uploads</div>
+                <div class="profile-stat"><strong id="profile-beats-stat">0</strong> beats listed</div>
+                <div class="profile-stat"><strong id="profile-sold-stat">0</strong> beats sold</div>
               </div>
             </div>
           </div>
@@ -408,6 +407,9 @@
     </div>
   </div>
 </div>
+
+<!-- Real audio element — actually plays uploaded files (was purely a fake progress-bar animation before) -->
+<audio id="audio-el" preload="none"></audio>
 
 <!-- Player bar -->
 <div class="player-bar" id="player-bar">
@@ -594,31 +596,10 @@ const SUPABASE_URL = 'https://memqrddozojxceibkawj.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_br3VPUs3cOqJTZJYJmzQsQ_E4dcLzs-';
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-const SAMPLES = [
-  {id:1,name:"Midnight Trap Keys",artist:"prodbywave",bpm:140,key:"F#m",dur:"0:04",tags:["trap","melody"],pro:false,genre:"trap"},
-  {id:2,name:"808 Distorted Sub",artist:"zsolaa.wtf",bpm:145,key:"—",dur:"0:02",tags:["trap","808","drums"],pro:false,genre:"trap"},
-  {id:3,name:"Lo-fi Vinyl Crackle",artist:"dustybeats",bpm:85,key:"—",dur:"0:08",tags:["lofi","texture"],pro:false,genre:"lofi"},
-  {id:4,name:"Dark Piano Chord C#m",artist:"shadowkeys",bpm:0,key:"C#m",dur:"0:03",tags:["dark","piano","one-shot"],pro:false,genre:"trap"},
-  {id:5,name:"Chopped Vocal Run",artist:"voxchop",bpm:140,key:"Am",dur:"0:02",tags:["vocal","chop"],pro:true,genre:"rnb"},
-  {id:6,name:"UK Drill Hi-Hat Pattern",artist:"100hz",bpm:140,key:"—",dur:"0:02",tags:["drill","drums"],pro:false,genre:"drill"},
-  {id:7,name:"Ambient Pad Wash Cm",artist:"atmosph",bpm:0,key:"Cm",dur:"0:16",tags:["ambient","pad"],pro:true,genre:"ambient"},
-  {id:8,name:"Bouncy House Synth",artist:"4onthefloor",bpm:128,key:"Am",dur:"0:04",tags:["house","synth"],pro:false,genre:"house"},
-  {id:9,name:"Mellow Rhodes Loop Dm",artist:"dustybeats",bpm:90,key:"Dm",dur:"0:04",tags:["lofi","melody","loop"],pro:false,genre:"lofi"},
-  {id:10,name:"Drill Strings Hit",artist:"100hz",bpm:140,key:"—",dur:"0:01",tags:["drill","strings","one-shot"],pro:true,genre:"drill"},
-  {id:11,name:"Ethereal Vocal Chop Eb",artist:"voxchop",bpm:130,key:"Eb",dur:"0:02",tags:["vocal","chop","melodic"],pro:false,genre:"rnb"},
-  {id:12,name:"Hard Trap Snare",artist:"prodbywave",bpm:0,key:"—",dur:"0:01",tags:["trap","drums","snare"],pro:false,genre:"trap"},
-];
-
-const BEATS = [
-  {id:1,title:"Phantom Cipher",artist:"prodbywave",bpm:140,key:"Fm",genre:"trap",price:800,tags:["dark","melodic","hard"],sold:false,emoji:"🌑",color:"#1a1a2e"},
-  {id:2,title:"Golden Hour",artist:"dustybeats",bpm:88,key:"Dm",genre:"lofi",price:350,tags:["chill","sample-ready","vibes"],sold:true,soldTo:"anon...7x3k",emoji:"🌅",color:"#2d1b00"},
-  {id:3,title:"Knife Edge",artist:"100hz",bpm:140,key:"G#m",genre:"drill",price:600,tags:["drill","strings","dark"],sold:false,emoji:"🔪",color:"#0f1a0f"},
-  {id:4,title:"Cloud Surf",artist:"atmosph",bpm:95,key:"Cm",genre:"ambient",price:450,tags:["ambient","dreamy","vocal"],sold:false,emoji:"☁️",color:"#0a1628"},
-  {id:5,title:"Eastside Bounce",artist:"zsolaa.wtf",bpm:130,key:"Am",genre:"rnb",price:700,tags:["rnb","bounce","melodic"],sold:false,emoji:"🎸",color:"#1e0a28"},
-  {id:6,title:"Steel Rain",artist:"shadowkeys",bpm:145,key:"Bm",genre:"trap",price:1200,tags:["epic","cinematic","hard"],sold:false,emoji:"⚡",color:"#1a1a1a"},
-  {id:7,title:"Neon Alley",artist:"4onthefloor",bpm:128,key:"Em",genre:"house",price:500,tags:["house","neon","dance"],sold:true,soldTo:"beat...9z2m",emoji:"🌆",color:"#0a1a1a"},
-  {id:8,title:"Ivory Keys",artist:"prodbywave",bpm:82,key:"Cm",genre:"lofi",price:300,tags:["piano","lofi","calm"],sold:false,emoji:"🎹",color:"#1a1208"},
-];
+// Real data only — populated from Supabase on page load (loadSamplesFromDB/loadBeatsFromDB).
+// No fake seed/demo entries: an empty marketplace should look empty, not fabricated.
+const SAMPLES = [];
+const BEATS = [];
 
 let purchasedBeats = [];
 let currentSample = null; let isPlaying = false;
@@ -629,6 +610,41 @@ let pendingBeatId = null;
 let walletAddress = null;
 
 // ---- RENDER SAMPLES ----
+// ---- REAL STATS (no more hardcoded fake numbers) ----
+function updateStats() {
+  // Top marketplace banner
+  const statSamples = document.getElementById('stat-samples');
+  const statCreators = document.getElementById('stat-creators');
+  const statBeats = document.getElementById('stat-beats');
+  if (statSamples) statSamples.textContent = SAMPLES.length.toLocaleString();
+  if (statBeats) statBeats.textContent = BEATS.length.toLocaleString();
+  if (statCreators) {
+    const creators = new Set(
+      [...SAMPLES, ...BEATS]
+        .map(x => x.artist)
+        .filter(a => a && a !== 'unknown' && a !== 'anonymous')
+    );
+    statCreators.textContent = creators.size.toLocaleString();
+  }
+
+  // Profile header — only meaningful once a wallet is connected
+  const short = walletAddress ? walletAddress.slice(0,4)+'...'+walletAddress.slice(-4) : null;
+  const nameEl = document.getElementById('profile-name-el');
+  const addrEl = document.getElementById('profile-addr-el');
+  const avatarEl = document.getElementById('profile-avatar');
+  const uploadsEl = document.getElementById('profile-uploads-stat');
+  const beatsEl = document.getElementById('profile-beats-stat');
+  const soldEl = document.getElementById('profile-sold-stat');
+
+  if (nameEl) nameEl.textContent = short || 'Not connected';
+  if (addrEl) addrEl.textContent = walletAddress || 'Connect your wallet to see your profile';
+  if (avatarEl) avatarEl.textContent = short ? short.slice(0,2).toUpperCase() : '—';
+
+  if (uploadsEl) uploadsEl.textContent = short ? SAMPLES.filter(s => s.artist === short).length : 0;
+  if (beatsEl) beatsEl.textContent = short ? BEATS.filter(b => b.artist === short).length : 0;
+  if (soldEl) soldEl.textContent = short ? BEATS.filter(b => b.artist === short && b.sold).length : 0;
+}
+
 function renderSamples() {
   const grid = document.getElementById('samples-grid');
   if (!grid) return;
@@ -778,24 +794,52 @@ function confirmBuy() {
   }, 100);
 }
 
-// ---- PLAY ----
+// ---- PLAY (real HTML5 audio — was a fake progress-bar animation before) ----
+const audioEl = document.getElementById('audio-el');
+
+function formatTime(sec) {
+  if (!isFinite(sec)) return '0:00';
+  const m = Math.floor(sec/60), s = Math.floor(sec%60);
+  return m+':'+(s<10?'0':'')+s;
+}
+
+audioEl.addEventListener('timeupdate', () => {
+  if (!audioEl.duration) return;
+  const pct = (audioEl.currentTime/audioEl.duration)*100;
+  document.getElementById('progress-fill').style.width = pct+'%';
+  document.getElementById('player-time').textContent = formatTime(audioEl.currentTime);
+});
+audioEl.addEventListener('ended', () => {
+  isPlaying = false;
+  updatePlayerBtn();
+  renderSamples();
+});
+
+function playTrack(track) {
+  if (!track.file_url) {
+    alert('This track doesn\'t have an audio file uploaded yet.');
+    return;
+  }
+  currentSample = track;
+  audioEl.src = track.file_url;
+  audioEl.play().catch(e => alert('Playback failed: ' + e.message));
+  isPlaying = true;
+  document.getElementById('player-name').textContent = track.name;
+  document.getElementById('player-artist').textContent = track.artist || '';
+  document.getElementById('player-bar').classList.add('visible');
+  updatePlayerBtn();
+}
+
 function playBeat(id) {
   const b = BEATS.find(b=>b.id===id);
   if (!b) return;
-  currentSample = {id:'beat-'+b.id, name:b.title, artist:b.artist+' · '+b.bpm+' BPM · '+b.key};
-  isPlaying = true; progressPct = 0;
-  clearInterval(progressInterval);
-  progressInterval = setInterval(()=>{
-    progressPct = Math.min(progressPct+0.4,100);
-    document.getElementById('progress-fill').style.width = progressPct+'%';
-    const sec = Math.floor(progressPct/100*16);
-    document.getElementById('player-time').textContent = '0:'+(sec<10?'0':'')+sec;
-    if (progressPct>=100){clearInterval(progressInterval);isPlaying=false;updatePlayerBtn();}
-  },80);
-  document.getElementById('player-name').textContent = b.title+' — preview';
-  document.getElementById('player-artist').textContent = b.artist+' · '+b.bpm+' BPM · '+b.key;
-  document.getElementById('player-bar').classList.add('visible');
-  updatePlayerBtn();
+  if (currentSample && currentSample.id==='beat-'+b.id) { togglePlay(); return; }
+  playTrack({
+    id: 'beat-'+b.id,
+    name: b.title+' — preview',
+    artist: b.artist+' · '+b.bpm+' BPM · '+b.key,
+    file_url: b.file_url
+  });
 }
 
 function playSample(id) {
@@ -803,33 +847,19 @@ function playSample(id) {
   if (!s) return;
   if (s.pro&&!walletConnected){alert('Hold $SAMPLA tokens to access premium samples.');return;}
   if (currentSample&&currentSample.id===id){togglePlay();return;}
-  currentSample = s; isPlaying = true; progressPct = 0;
-  clearInterval(progressInterval);
-  progressInterval = setInterval(()=>{
-    progressPct = Math.min(progressPct+0.5,100);
-    document.getElementById('progress-fill').style.width = progressPct+'%';
-    const sec = Math.floor(progressPct/100*8);
-    document.getElementById('player-time').textContent = '0:0'+sec;
-    if (progressPct>=100){clearInterval(progressInterval);isPlaying=false;updatePlayerBtn();}
-    renderSamples();
-  },80);
-  document.getElementById('player-name').textContent = s.name;
-  document.getElementById('player-artist').textContent = s.artist+(s.bpm>0?' · '+s.bpm+' BPM':'')+(s.key!=='—'?' · '+s.key:'');
-  document.getElementById('player-bar').classList.add('visible');
-  updatePlayerBtn(); renderSamples();
+  playTrack({
+    id: s.id,
+    name: s.name,
+    artist: s.artist+(s.bpm>0?' · '+s.bpm+' BPM':'')+(s.key!=='—'?' · '+s.key:''),
+    file_url: s.file_url
+  });
+  renderSamples();
 }
 
 function togglePlay() {
-  if (!currentSample) return;
-  isPlaying = !isPlaying;
-  if (isPlaying) {
-    progressInterval = setInterval(()=>{
-      progressPct = Math.min(progressPct+0.5,100);
-      document.getElementById('progress-fill').style.width = progressPct+'%';
-      if (progressPct>=100){clearInterval(progressInterval);isPlaying=false;updatePlayerBtn();}
-      renderSamples();
-    },80);
-  } else { clearInterval(progressInterval); }
+  if (!currentSample || !audioEl.src) return;
+  if (audioEl.paused) { audioEl.play(); isPlaying = true; }
+  else { audioEl.pause(); isPlaying = false; }
   updatePlayerBtn(); renderSamples();
 }
 
@@ -840,9 +870,14 @@ function updatePlayerBtn() {
 
 function downloadSample(id) {
   const s = SAMPLES.find(s=>s.id===id);
-  if (s) alert(`Downloading "${s.name}"\n\n(Production: IPFS/Arweave download)`);
+  if (!s) return;
+  if (!s.file_url) { alert('No audio file available for this sample yet.'); return; }
+  window.open(s.file_url, '_blank');
 }
-function downloadCurrent() { if (currentSample) alert('Download: '+currentSample.name); }
+function downloadCurrent() {
+  if (currentSample && currentSample.file_url) window.open(currentSample.file_url, '_blank');
+  else if (currentSample) alert('No audio file available to download.');
+}
 
 // ---- FILTERS ----
 function filterSamples(q) {
@@ -900,7 +935,7 @@ function showPage(page,el) {
   btn.textContent = page==='beats' ? '+ List beat' : '+ Upload';
   btn.onclick = page==='beats' ? showBeatUpload : showUploadForPage;
   if(page==='beats') renderBeats();
-  if(page==='profile'){renderSamples();renderBeats();}
+  if(page==='profile'){renderSamples();renderBeats();updateStats();}
 }
 
 function showUploadForPage() {
@@ -931,16 +966,38 @@ function hideModal(id,event) {
   if(!event||event.target===document.getElementById(id))
     document.getElementById(id).style.display='none';
 }
+let selectedSampleFile = null;
+let selectedBeatFile = null;
+
 function handleFile(input,targetId) {
   if(input.files[0]){
-    const name = input.files[0].name.replace(/\.[^.]+$/,'').replace(/_/g,' ');
+    const file = input.files[0];
+    const name = file.name.replace(/\.[^.]+$/,'').replace(/_/g,' ');
     document.getElementById(targetId).value = name;
+    if (targetId === 'upload-name') selectedSampleFile = file;
+    if (targetId === 'beat-name') selectedBeatFile = file;
   }
+}
+
+// Upload an audio file to Supabase Storage and return its public URL.
+// Requires a public "audio" bucket to exist in the Supabase project.
+async function uploadAudioFile(file, folder) {
+  if (!file) return '';
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+  const path = `${folder}/${Date.now()}-${safeName}`;
+  const { error } = await supabaseClient.storage.from('audio').upload(path, file, {
+    cacheControl: '3600',
+    upsert: false
+  });
+  if (error) throw new Error('Audio upload failed: ' + error.message);
+  const { data } = supabaseClient.storage.from('audio').getPublicUrl(path);
+  return data.publicUrl;
 }
 
 async function submitUpload() {
   const name = document.getElementById('upload-name').value;
   if(!name){alert('Add a name');return;}
+  if(!selectedSampleFile){alert('Please choose an audio file to upload');return;}
   const newSample = {
     id: SAMPLES.length+1, name,
     artist: walletAddress ? walletAddress.slice(0,4)+'...'+walletAddress.slice(-4) : 'anonymous',
@@ -952,18 +1009,17 @@ async function submitUpload() {
     genre:'trap', file_url:''
   };
   try {
+    newSample.file_url = await uploadAudioFile(selectedSampleFile, 'samples');
     await saveSampleToDB(newSample);
     SAMPLES.unshift(newSample);
     filteredSamples=[...SAMPLES];
+    selectedSampleFile = null;
     hideModal('upload-modal');
     renderSamples();
-    alert(`✅ "${name}" saved to database!`);
+    updateStats();
+    showToast(`"${name}" uploaded successfully ✓`);
   } catch(e) {
-    SAMPLES.unshift(newSample);
-    filteredSamples=[...SAMPLES];
-    hideModal('upload-modal');
-    renderSamples();
-    alert(`"${name}" uploaded locally.\n\nDB error: ${e.message}`);
+    alert(`Upload failed: ${e.message}`);
   }
 }
 
@@ -972,6 +1028,7 @@ async function submitBeat() {
   const price = parseInt(document.getElementById('beat-price').value);
   if(!title){alert('Add a beat title');return;}
   if(!price||price<1){alert('Set a price in $SAMPLA');return;}
+  if(!selectedBeatFile){alert('Please choose an audio file to upload');return;}
   const newBeat = {
     id: BEATS.length+1, title,
     artist: walletAddress ? walletAddress.slice(0,4)+'...'+walletAddress.slice(-4) : 'anonymous',
@@ -982,19 +1039,18 @@ async function submitBeat() {
     sold:false, emoji:'🎵', color:'#1a1a2e', file_url:''
   };
   try {
+    newBeat.file_url = await uploadAudioFile(selectedBeatFile, 'beats');
     await saveBeatToDB(newBeat);
     BEATS.unshift(newBeat);
     filteredBeats=[...BEATS];
+    selectedBeatFile = null;
     hideModal('beat-modal');
     renderBeats();
+    updateStats();
     const fee=Math.round(price*FEE);
-    alert(`✅ "${title}" listed!\n\nPrice: ${price.toLocaleString()} $SAMPLA\nYou receive: ${(price-fee).toLocaleString()} $SAMPLA\nPlatform fee: ${fee.toLocaleString()} $SAMPLA (3.3%)`);
+    showToast(`"${title}" listed — you receive ${(price-fee).toLocaleString()} $SAMPLA after fees ✓`);
   } catch(e) {
-    BEATS.unshift(newBeat);
-    filteredBeats=[...BEATS];
-    hideModal('beat-modal');
-    renderBeats();
-    alert(`Beat listed locally.\n\nDB error: ${e.message}`);
+    alert(`Listing failed: ${e.message}`);
   }
 }
 
@@ -1030,6 +1086,7 @@ async function toggleWallet() {
     label.textContent = 'Connect wallet';
     renderSamples();
     renderBeats();
+    updateStats();
     return;
   }
 
@@ -1061,6 +1118,7 @@ async function toggleWallet() {
     await saveProfileToDB(walletAddress, short, data.user.id);
     renderSamples();
     renderBeats();
+    updateStats();
   } catch(e) {
     alert('Wallet connection failed: ' + e.message);
   }
@@ -1215,6 +1273,7 @@ async function loadSamplesFromDB() {
       renderSamples();
     }
   } catch(e) { console.log('DB load:', e.message); }
+  updateStats();
 }
 
 // Load real beats from Supabase
@@ -1236,6 +1295,7 @@ async function loadBeatsFromDB() {
       renderBeats();
     }
   } catch(e) { console.log('DB load beats:', e.message); }
+  updateStats();
 }
 
 // Save sample to Supabase
@@ -1312,6 +1372,7 @@ window.addEventListener('load', async () => {
     }
   } catch(e) { console.log('Session restore:', e.message); }
 
+  updateStats();
   loadSamplesFromDB();
   loadBeatsFromDB();
 });
