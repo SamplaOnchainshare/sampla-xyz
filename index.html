@@ -376,25 +376,25 @@
           </div>
 
           <div class="page-tabs">
-            <div class="page-tab active" onclick="switchProfileTab('uploads',this)">My samples</div>
-            <div class="page-tab" onclick="switchProfileTab('beats',this)">My beats</div>
+            <div class="page-tab active" onclick="switchProfileTab('beats',this)">My beats</div>
+            <div class="page-tab" onclick="switchProfileTab('uploads',this)">My samples</div>
             <div class="page-tab" onclick="switchProfileTab('purchased',this)">Purchased</div>
           </div>
 
-          <div id="profile-tab-uploads">
-            <div style="margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;">
-              <div style="font-size:13px;color:var(--text2)">Your uploaded sample packs</div>
-              <button class="btn btn-ghost btn-sm" onclick="showUpload()">+ Upload sample</button>
-            </div>
-            <div class="samples-grid" id="my-samples-grid"></div>
-          </div>
-
-          <div id="profile-tab-beats" style="display:none">
+          <div id="profile-tab-beats">
             <div style="margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;">
               <div style="font-size:13px;color:var(--text2)">Your listed beats</div>
               <button class="btn btn-ghost btn-sm" onclick="showBeatUpload()">+ List beat</button>
             </div>
             <div class="beats-grid" id="my-beats-grid"></div>
+          </div>
+
+          <div id="profile-tab-uploads" style="display:none">
+            <div style="margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;">
+              <div style="font-size:13px;color:var(--text2)">Your uploaded sample packs</div>
+              <button class="btn btn-ghost btn-sm" onclick="showUpload()">+ Upload sample</button>
+            </div>
+            <div class="samples-grid" id="my-samples-grid"></div>
           </div>
 
           <div id="profile-tab-purchased" style="display:none">
@@ -667,7 +667,7 @@ function renderSamples() {
 
   const myGrid = document.getElementById('my-samples-grid');
   if (myGrid) {
-    const mine = SAMPLES.filter(s => s.artist === 'zsolaa.wtf' || s.artist === (walletAddress ? walletAddress.slice(0,4)+'...'+walletAddress.slice(-4) : '__none__'));
+    const mine = SAMPLES.filter(s => walletAddress && s.artist === walletAddress.slice(0,4)+'...'+walletAddress.slice(-4));
     if (!mine.length) {
       myGrid.innerHTML = `<div class="empty-state"><div class="empty-state-icon">🎵</div><div class="empty-state-text">No uploads yet</div><div class="empty-state-sub">Hit "+ Upload sample" to share your first sample</div></div>`;
     } else {
@@ -701,7 +701,7 @@ function renderBeats() {
 
   const myGrid = document.getElementById('my-beats-grid');
   if (myGrid) {
-    const mine = BEATS.filter(b => b.artist === 'zsolaa.wtf' || b.artist === (walletAddress ? walletAddress.slice(0,4)+'...'+walletAddress.slice(-4) : '__none__'));
+    const mine = BEATS.filter(b => walletAddress && b.artist === walletAddress.slice(0,4)+'...'+walletAddress.slice(-4));
     if (!mine.length) {
       myGrid.innerHTML = `<div class="empty-state"><div class="empty-state-icon">🎹</div><div class="empty-state-text">No beats listed yet</div><div class="empty-state-sub">Hit "+ List beat" to put your beat on the market</div></div>`;
     } else {
