@@ -271,12 +271,12 @@
         <div class="sidebar-item active" id="nav-samples" onclick="showPage('samples', this)">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
           Samples
-          <span class="sidebar-count">2.4k</span>
+          <span class="sidebar-count" id="nav-samples-count">0</span>
         </div>
         <div class="sidebar-item" id="nav-beats" onclick="showPage('beats', this)">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
           Beat Market
-          <span class="sidebar-count">186</span>
+          <span class="sidebar-count" id="nav-beats-count">0</span>
         </div>
         <div class="sidebar-item" onclick="showPage('samples', this)">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
@@ -640,6 +640,11 @@ function updateStats() {
   const statBeats = document.getElementById('stat-beats');
   if (statSamples) statSamples.textContent = SAMPLES.length.toLocaleString();
   if (statBeats) statBeats.textContent = BEATS.length.toLocaleString();
+
+  const navSamplesCount = document.getElementById('nav-samples-count');
+  const navBeatsCount = document.getElementById('nav-beats-count');
+  if (navSamplesCount) navSamplesCount.textContent = SAMPLES.length.toLocaleString();
+  if (navBeatsCount) navBeatsCount.textContent = BEATS.length.toLocaleString();
   if (statCreators) {
     const creators = new Set(
       [...SAMPLES, ...BEATS]
@@ -810,8 +815,8 @@ async function confirmBuy() {
   if (!b.sellerWallet) { alert("This beat is missing the seller's wallet address and can't be purchased yet."); return; }
   if (b.sellerWallet === walletAddress) { alert("You can't buy your own beat."); return; }
 
-  const provider = window.solana || window.phantom?.solana;
-  if (!provider) { alert('Phantom wallet not found.'); return; }
+  const provider = getSolanaProvider();
+  if (!provider) { alert('No Solana wallet found. Install Phantom, Backpack, or Solflare.'); return; }
 
   const btn = document.getElementById('confirm-buy-btn');
   const originalText = btn.textContent;
@@ -1164,6 +1169,18 @@ document.addEventListener('DOMContentLoaded',()=>{
 });
 
 // ---- WALLET ----
+// Detects whichever Solana wallet extension the user actually has active,
+// instead of only ever looking for Phantom. window.solana can be claimed by
+// whichever extension loaded/attached last, so we check vendor-specific
+// globals first and only fall back to the generic window.solana.
+function getSolanaProvider() {
+  if (window.backpack?.isBackpack) return window.backpack;
+  if (window.phantom?.solana?.isPhantom) return window.phantom.solana;
+  if (window.solflare?.isSolflare) return window.solflare;
+  if (window.solana) return window.solana;
+  return null;
+}
+
 // ---- WALLET BUTTON: connect if logged out, open dropdown if logged in ----
 function onWalletBtnClick() {
   if (walletConnected) {
@@ -1326,7 +1343,8 @@ async function disconnectWallet() {
   const label = document.getElementById('wallet-label');
   try {
     await supabaseClient.auth.signOut();
-    if (window.solana && window.solana.disconnect) await window.solana.disconnect();
+    const provider = getSolanaProvider();
+    if (provider && provider.disconnect) await provider.disconnect();
   } catch(e) {}
   walletConnected = false;
   walletAddress = null;
@@ -1341,11 +1359,11 @@ async function connectWallet() {
   const dot = document.getElementById('wallet-dot');
   const label = document.getElementById('wallet-label');
 
-  // Try Phantom
-  const provider = window.solana || window.phantom?.solana;
+  // Detect whichever supported Solana wallet is installed
+  const provider = getSolanaProvider();
 
-  if(!provider || !provider.isPhantom) {
-    alert('Phantom wallet not found!\n\nPlease install Phantom:\nhttps://phantom.app\n\nOn Seeker: use the built-in wallet.');
+  if(!provider) {
+    alert('No Solana wallet found!\n\nPlease install Phantom, Backpack, or Solflare.\nOn Seeker: use the built-in wallet.');
     return;
   }
 
@@ -1606,7 +1624,7 @@ async function saveProfileToDB(wallet, username, userId) {
 window.addEventListener('load', async () => {
   try {
     const { data: { session } } = await supabaseClient.auth.getSession();
-    const provider = window.solana || window.phantom?.solana;
+    const provider = getSolanaProvider();
 
     if (session && provider) {
       // Phantom doesn't expose publicKey after a page reload unless we
