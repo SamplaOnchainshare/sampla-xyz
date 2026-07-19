@@ -444,6 +444,7 @@
             <div class="page-tab active" data-tab="artist-beats" onclick="switchArtistTab('beats',this)">Beats</div>
             <div class="page-tab" data-tab="artist-samples" onclick="switchArtistTab('samples',this)">Samples</div>
             <div class="page-tab" data-tab="artist-following" onclick="switchArtistTab('following',this)">Following</div>
+            <div class="page-tab" data-tab="artist-followers" onclick="switchArtistTab('followers',this)">Followers</div>
           </div>
 
           <div id="artist-tab-beats">
@@ -454,6 +455,9 @@
           </div>
           <div id="artist-tab-following" style="display:none">
             <div id="artist-following-grid" style="display:flex;flex-direction:column;gap:8px"></div>
+          </div>
+          <div id="artist-tab-followers" style="display:none">
+            <div id="artist-followers-grid" style="display:flex;flex-direction:column;gap:8px"></div>
           </div>
         </div>
       </div>
@@ -491,6 +495,7 @@
             <div class="page-tab" data-tab="purchased" onclick="switchProfileTab('purchased',this)">Purchased</div>
             <div class="page-tab" data-tab="downloads" onclick="switchProfileTab('downloads',this)">Downloads</div>
             <div class="page-tab" data-tab="following" onclick="switchProfileTab('following',this)">Following</div>
+            <div class="page-tab" data-tab="followers" onclick="switchProfileTab('followers',this)">Followers</div>
           </div>
 
           <div id="profile-tab-beats">
@@ -522,6 +527,11 @@
           <div id="profile-tab-following" style="display:none">
             <div style="font-size:13px;color:var(--text2);margin-bottom:16px">Artists and profiles you follow</div>
             <div id="following-grid" style="display:flex;flex-direction:column;gap:8px"></div>
+          </div>
+
+          <div id="profile-tab-followers" style="display:none">
+            <div style="font-size:13px;color:var(--text2);margin-bottom:16px">People who follow you</div>
+            <div id="followers-grid" style="display:flex;flex-direction:column;gap:8px"></div>
           </div>
         </div>
       </div>
@@ -1039,6 +1049,7 @@ async function confirmBuy() {
     hideModal('buy-modal');
     renderBeats();
     updateStats();
+    updateProfileTabVisibility();
 
     const shortSig = signature.slice(0,8)+'...'+signature.slice(-8);
     setTimeout(() => {
@@ -1349,6 +1360,32 @@ function renderMyFollowing() {
   }).join('');
 }
 
+// Renders the "Followers" tab on My Profile — everyone following the connected wallet
+function renderMyFollowers() {
+  const grid = document.getElementById('followers-grid');
+  if (!grid) return;
+  const myShort = walletAddress ? shortAddr(walletAddress) : null;
+  const list = allFollows.filter(f => f.following_wallet === myShort).map(f => f.follower_wallet);
+  if (!list.length) {
+    grid.innerHTML = `<div style="color:var(--text3);font-size:13px;padding:20px 0">No followers yet.</div>`;
+    return;
+  }
+  grid.innerHTML = list.map(shortWallet => {
+    const p = profilesByShortWallet[shortWallet];
+    const name = (p && p.display_name) || shortWallet;
+    const alreadyFollowing = followingSet.has(shortWallet);
+    return `<div class="wallet-option-btn" style="justify-content:flex-start">
+      <span class="avatar" style="width:36px;height:36px;font-size:14px;flex-shrink:0;cursor:pointer" onclick="viewArtistProfile('${shortWallet}')">${avatarHTML(p, shortWallet)}</span>
+      <span style="flex:1;cursor:pointer" onclick="viewArtistProfile('${shortWallet}')">
+        <div style="font-weight:700">${name}</div>
+      </span>
+      ${alreadyFollowing
+        ? `<span style="font-size:12px;color:var(--text3)">Following</span>`
+        : `<button class="btn btn-accent btn-sm" onclick="event.stopPropagation();toggleFollow('${shortWallet}')">Follow back</button>`}
+    </div>`;
+  }).join('');
+}
+
 // Opens a read-only public profile for any creator — reachable by clicking
 // their name/avatar anywhere (sample rows, beat cards) or from the Artists directory.
 function viewArtistProfile(shortWallet) {
@@ -1426,6 +1463,19 @@ function renderArtistProfile() {
         </div>`;
       }).join('')
     : `<div style="color:var(--text3);font-size:13px;padding:20px 0">Not following anyone yet.</div>`;
+
+  const followersGrid = document.getElementById('artist-followers-grid');
+  const theirFollowers = allFollows.filter(f => f.following_wallet === shortWallet).map(f => f.follower_wallet);
+  followersGrid.innerHTML = theirFollowers.length
+    ? theirFollowers.map(w => {
+        const fp = profilesByShortWallet[w];
+        const fname = (fp && fp.display_name) || w;
+        return `<div class="wallet-option-btn" onclick="viewArtistProfile('${w}')" style="justify-content:flex-start">
+          <span class="avatar" style="width:36px;height:36px;font-size:14px;flex-shrink:0">${avatarHTML(fp, w)}</span>
+          <span style="font-weight:700">${fname}</span>
+        </div>`;
+      }).join('')
+    : `<div style="color:var(--text3);font-size:13px;padding:20px 0">No followers yet.</div>`;
 }
 
 function switchArtistTab(tab, el) {
@@ -1434,6 +1484,7 @@ function switchArtistTab(tab, el) {
   document.getElementById('artist-tab-beats').style.display = tab==='beats'?'block':'none';
   document.getElementById('artist-tab-samples').style.display = tab==='samples'?'block':'none';
   document.getElementById('artist-tab-following').style.display = tab==='following'?'block':'none';
+  document.getElementById('artist-tab-followers').style.display = tab==='followers'?'block':'none';
 }
 
 // Builds the Artists directory from whoever actually has samples or beats
@@ -1475,7 +1526,7 @@ function showPage(page,el) {
   btn.textContent = page==='beats' ? '+ List beat' : '+ Upload';
   btn.onclick = page==='beats' ? showBeatUpload : showUploadForPage;
   if(page==='beats') renderBeats();
-  if(page==='profile'){renderSamples();renderBeats();updateStats();}
+  if(page==='profile'){renderSamples();renderBeats();updateStats();updateProfileTabVisibility();}
   if(page==='trending') loadTrendingFeed();
   if(page==='artists') renderArtistsDirectory();
 }
@@ -1496,6 +1547,46 @@ function showUploadForPage() {
   else showUpload();
 }
 
+// Keeps a brand-new profile clutter-free: "My beats"/"My samples"/"Purchased"
+// only show up once there's actually something to show there. "Following"
+// stays visible always, since follow/followers work with zero uploads.
+function updateProfileTabVisibility() {
+  if (!walletConnected) return;
+  const short = shortAddr(walletAddress);
+  const hasBeats = BEATS.some(b => b.artist === short);
+  const hasSamples = SAMPLES.some(s => s.artist === short);
+  const hasPurchased = purchasedBeats.length > 0;
+
+  const beatsTab = document.querySelector('.page-tab[data-tab="beats"]');
+  const uploadsTab = document.querySelector('.page-tab[data-tab="uploads"]');
+  const purchasedTab = document.querySelector('.page-tab[data-tab="purchased"]');
+  const downloadsTab = document.querySelector('.page-tab[data-tab="downloads"]');
+
+  if (beatsTab) beatsTab.style.display = hasBeats ? '' : 'none';
+  if (uploadsTab) uploadsTab.style.display = hasSamples ? '' : 'none';
+  if (purchasedTab) purchasedTab.style.display = hasPurchased ? '' : 'none';
+
+  // Downloads has no running client-side count, so check with a cheap query
+  if (downloadsTab) {
+    sbFetch(`sample_downloads?wallet_address=eq.${walletAddress}&select=id&limit=1`)
+      .then(data => { downloadsTab.style.display = (data && data.length) ? '' : 'none'; ensureActiveProfileTab(); })
+      .catch(() => { downloadsTab.style.display = 'none'; ensureActiveProfileTab(); });
+  }
+
+  ensureActiveProfileTab();
+}
+
+// If the currently-active tab just got hidden, fall back to the first
+// visible one (Following is never hidden, so there's always a fallback).
+function ensureActiveProfileTab() {
+  const tabs = [...document.querySelectorAll('.page-tabs .page-tab')];
+  const activeTab = tabs.find(t => t.classList.contains('active'));
+  if (activeTab && activeTab.style.display !== 'none') return;
+  const firstVisible = tabs.find(t => t.style.display !== 'none');
+  if (firstVisible) switchProfileTab(firstVisible.dataset.tab, firstVisible);
+}
+
+
 function switchProfileTab(tab, el) {
   document.querySelectorAll('.page-tab').forEach(t=>t.classList.remove('active'));
   el.classList.add('active');
@@ -1504,9 +1595,11 @@ function switchProfileTab(tab, el) {
   document.getElementById('profile-tab-purchased').style.display = tab==='purchased'?'block':'none';
   document.getElementById('profile-tab-downloads').style.display = tab==='downloads'?'block':'none';
   document.getElementById('profile-tab-following').style.display = tab==='following'?'block':'none';
+  document.getElementById('profile-tab-followers').style.display = tab==='followers'?'block':'none';
   renderBeats();
   if (tab==='downloads') loadMyDownloads();
   if (tab==='following') renderMyFollowing();
+  if (tab==='followers') renderMyFollowers();
 }
 
 // ---- MODALS ----
@@ -1573,6 +1666,7 @@ async function submitUpload() {
     hideModal('upload-modal');
     renderSamples();
     updateStats();
+    updateProfileTabVisibility();
     showToast(`"${name}" uploaded successfully ✓`);
   } catch(e) {
     alert(`Upload failed: ${e.message}`);
@@ -1603,6 +1697,7 @@ async function submitBeat() {
     hideModal('beat-modal');
     renderBeats();
     updateStats();
+    updateProfileTabVisibility();
     const fee=Math.round(price*FEE);
     showToast(`"${title}" listed — you receive ${(price-fee).toLocaleString()} $SAMPLA after fees ✓`);
   } catch(e) {
