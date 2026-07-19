@@ -431,9 +431,9 @@
               <div class="profile-name" id="artist-profile-name">—</div>
               <div class="profile-addr" id="artist-profile-addr">—</div>
               <div class="profile-stats">
-                <div class="profile-stat"><strong id="artist-samples-count">0</strong> samples</div>
-                <div class="profile-stat"><strong id="artist-beats-count">0</strong> beats listed</div>
-                <div class="profile-stat"><strong id="artist-sold-count">0</strong> beats sold</div>
+                <div class="profile-stat" id="artist-samples-count-row"><strong id="artist-samples-count">0</strong> samples</div>
+                <div class="profile-stat" id="artist-beats-count-row"><strong id="artist-beats-count">0</strong> beats listed</div>
+                <div class="profile-stat" id="artist-sold-count-row"><strong id="artist-sold-count">0</strong> beats sold</div>
                 <div class="profile-stat"><strong id="artist-followers-count">0</strong> followers</div>
               </div>
             </div>
@@ -471,9 +471,9 @@
               <div class="profile-name" id="profile-name-el">Not connected</div>
               <div class="profile-addr" id="profile-addr-el"></div>
               <div class="profile-stats">
-                <div class="profile-stat"><strong id="profile-uploads-stat">0</strong> uploads</div>
-                <div class="profile-stat"><strong id="profile-beats-stat">0</strong> beats listed</div>
-                <div class="profile-stat"><strong id="profile-sold-stat">0</strong> beats sold</div>
+                <div class="profile-stat" id="profile-uploads-stat-row"><strong id="profile-uploads-stat">0</strong> uploads</div>
+                <div class="profile-stat" id="profile-beats-stat-row"><strong id="profile-beats-stat">0</strong> beats listed</div>
+                <div class="profile-stat" id="profile-sold-stat-row"><strong id="profile-sold-stat">0</strong> beats sold</div>
                 <div class="profile-stat"><strong id="profile-followers-stat">0</strong> followers</div>
                 <div class="profile-stat"><strong id="profile-following-stat">0</strong> following</div>
               </div>
@@ -836,11 +836,22 @@ function updateStats() {
   if (addrEl) addrEl.textContent = walletAddress || 'Connect your wallet to see your profile';
   renderAvatarInto(avatarEl, myProfile, short);
 
-  if (uploadsEl) uploadsEl.textContent = short ? SAMPLES.filter(s => s.artist === short).length : 0;
-  if (beatsEl) beatsEl.textContent = short ? BEATS.filter(b => b.artist === short).length : 0;
-  if (soldEl) soldEl.textContent = short ? BEATS.filter(b => b.artist === short && b.sold).length : 0;
+  const uploadsCount = short ? SAMPLES.filter(s => s.artist === short).length : 0;
+  const beatsCount = short ? BEATS.filter(b => b.artist === short).length : 0;
+  const soldCount = short ? BEATS.filter(b => b.artist === short && b.sold).length : 0;
+
+  if (uploadsEl) uploadsEl.textContent = uploadsCount;
+  if (beatsEl) beatsEl.textContent = beatsCount;
+  if (soldEl) soldEl.textContent = soldCount;
   if (followersEl) followersEl.textContent = short ? followerCount(short) : 0;
   if (followingEl) followingEl.textContent = followingSet.size;
+
+  const uploadsRow = document.getElementById('profile-uploads-stat-row');
+  const beatsRow = document.getElementById('profile-beats-stat-row');
+  const soldRow = document.getElementById('profile-sold-stat-row');
+  if (uploadsRow) uploadsRow.style.display = uploadsCount ? '' : 'none';
+  if (beatsRow) beatsRow.style.display = beatsCount ? '' : 'none';
+  if (soldRow) soldRow.style.display = soldCount ? '' : 'none';
 }
 
 function renderSamples() {
@@ -1410,7 +1421,11 @@ function renderArtistProfile() {
 
   document.getElementById('artist-samples-count').textContent = theirSamples.length;
   document.getElementById('artist-beats-count').textContent = theirBeats.length;
-  document.getElementById('artist-sold-count').textContent = theirBeats.filter(b=>b.sold).length;
+  const theirSoldCount = theirBeats.filter(b=>b.sold).length;
+  document.getElementById('artist-sold-count').textContent = theirSoldCount;
+  document.getElementById('artist-samples-count-row').style.display = theirSamples.length ? '' : 'none';
+  document.getElementById('artist-beats-count-row').style.display = theirBeats.length ? '' : 'none';
+  document.getElementById('artist-sold-count-row').style.display = theirSoldCount ? '' : 'none';
   document.getElementById('artist-followers-count').textContent = followerCount(shortWallet);
 
   const followBtn = document.getElementById('artist-follow-btn');
