@@ -1343,6 +1343,8 @@ async function toggleFollow(shortWallet) {
     await loadAllFollows();
     if (viewingArtistWallet === shortWallet) renderArtistProfile();
     if (document.getElementById('page-artists').classList.contains('active')) renderArtistsDirectory();
+    renderMyFollowing();
+    renderMyFollowers();
     updateStats();
   } catch(e) {
     alert('Follow action failed: ' + e.message);
