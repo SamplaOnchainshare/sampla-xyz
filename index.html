@@ -434,6 +434,7 @@
                 <div class="profile-stat" id="artist-samples-count-row"><strong id="artist-samples-count">0</strong> samples</div>
                 <div class="profile-stat" id="artist-beats-count-row"><strong id="artist-beats-count">0</strong> beats listed</div>
                 <div class="profile-stat" id="artist-sold-count-row"><strong id="artist-sold-count">0</strong> beats sold</div>
+                <div class="profile-stat"><strong id="artist-following-count">0</strong> following</div>
                 <div class="profile-stat"><strong id="artist-followers-count">0</strong> followers</div>
               </div>
             </div>
@@ -1321,6 +1322,10 @@ function followerCount(shortWallet) {
   return allFollows.filter(f => f.following_wallet === shortWallet).length;
 }
 
+function followingCount(shortWallet) {
+  return allFollows.filter(f => f.follower_wallet === shortWallet).length;
+}
+
 async function toggleFollow(shortWallet) {
   if (!walletConnected) { connectWallet(); return; }
   const myShort = shortAddr(walletAddress);
@@ -1441,6 +1446,7 @@ function renderArtistProfile() {
   document.getElementById('artist-beats-count-row').style.display = theirBeats.length ? '' : 'none';
   document.getElementById('artist-sold-count-row').style.display = theirSoldCount ? '' : 'none';
   document.getElementById('artist-followers-count').textContent = followerCount(shortWallet);
+  document.getElementById('artist-following-count').textContent = followingCount(shortWallet);
 
   const followBtn = document.getElementById('artist-follow-btn');
   const myShort = walletAddress ? shortAddr(walletAddress) : null;
