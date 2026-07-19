@@ -278,19 +278,23 @@
     <aside class="sidebar">
       <div class="sidebar-section">
         <div class="sidebar-label">Discover</div>
-        <div class="sidebar-item active" id="nav-samples" onclick="showPage('samples', this)">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
-          Samples
-          <span class="sidebar-count" id="nav-samples-count">0</span>
-        </div>
         <div class="sidebar-item" id="nav-beats" onclick="showPage('beats', this)">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
           Beat Market
           <span class="sidebar-count" id="nav-beats-count">0</span>
         </div>
-        <div class="sidebar-item" onclick="showPage('samples', this)">
+        <div class="sidebar-item active" id="nav-samples" onclick="showPage('samples', this)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+          Samples
+          <span class="sidebar-count" id="nav-samples-count">0</span>
+        </div>
+        <div class="sidebar-item" id="nav-trending" onclick="showPage('trending', this)">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
           Trending
+        </div>
+        <div class="sidebar-item" id="nav-artists" onclick="showPage('artists', this)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          Artists
         </div>
       </div>
 
@@ -310,11 +314,11 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
           My profile
         </div>
-        <div class="sidebar-item" onclick="showPage('samples', this)">
+        <div class="sidebar-item" onclick="goToProfileTab('downloads', this)">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
           Downloads
         </div>
-        <div class="sidebar-item" onclick="showPage('beats', this)">
+        <div class="sidebar-item" onclick="goToProfileTab('purchased', this)">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><polyline points="8 21 12 17 16 21"/></svg>
           Purchased beats
         </div>
@@ -382,6 +386,72 @@
         </div>
       </div>
 
+      <!-- Trending page — real sitewide activity, not personal history -->
+      <div id="page-trending" class="page-view">
+        <div class="page" style="padding-bottom:80px">
+          <div class="page-header">
+            <div>
+              <div class="page-title">Trending</div>
+              <div class="page-sub">What's hot right now — recent purchases and downloads across Sampla</div>
+            </div>
+          </div>
+
+          <div style="margin-bottom:28px">
+            <div style="font-size:14px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:6px">🔥 Recently sold beats</div>
+            <div class="beats-grid" id="trending-beats-grid"></div>
+          </div>
+
+          <div>
+            <div style="font-size:14px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:6px">⬇️ Recently downloaded samples</div>
+            <div id="trending-downloads-grid" style="display:flex;flex-direction:column;gap:8px"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Artists directory — browse every creator with content on the platform -->
+      <div id="page-artists" class="page-view">
+        <div class="page" style="padding-bottom:80px">
+          <div class="page-header">
+            <div>
+              <div class="page-title">Artists</div>
+              <div class="page-sub">Every creator selling samples or beats on Sampla</div>
+            </div>
+          </div>
+          <div id="artists-directory-grid" style="display:flex;flex-direction:column;gap:10px"></div>
+        </div>
+      </div>
+
+      <!-- Single artist public profile — read-only view of someone else's samples & beats -->
+      <div id="page-artist" class="page-view">
+        <div class="page" style="padding-bottom:80px">
+          <button class="btn btn-ghost btn-sm" style="margin-bottom:16px" onclick="showPage('artists', document.getElementById('nav-artists'))">← Back to Artists</button>
+          <div class="profile-header">
+            <div class="avatar" id="artist-profile-avatar" style="width:64px;height:64px;font-size:26px">—</div>
+            <div>
+              <div class="profile-name" id="artist-profile-name">—</div>
+              <div class="profile-addr" id="artist-profile-addr">—</div>
+              <div class="profile-stats">
+                <div class="profile-stat"><strong id="artist-samples-count">0</strong> samples</div>
+                <div class="profile-stat"><strong id="artist-beats-count">0</strong> beats listed</div>
+                <div class="profile-stat"><strong id="artist-sold-count">0</strong> beats sold</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="page-tabs">
+            <div class="page-tab active" data-tab="artist-beats" onclick="switchArtistTab('beats',this)">Beats</div>
+            <div class="page-tab" data-tab="artist-samples" onclick="switchArtistTab('samples',this)">Samples</div>
+          </div>
+
+          <div id="artist-tab-beats">
+            <div class="beats-grid" id="artist-beats-grid"></div>
+          </div>
+          <div id="artist-tab-samples" style="display:none">
+            <div class="samples-grid" id="artist-samples-grid"></div>
+          </div>
+        </div>
+      </div>
+
       <!-- Profile page -->
       <div id="page-profile" class="page-view">
         <div class="page" style="padding-bottom:80px">
@@ -408,9 +478,10 @@
           </div>
 
           <div class="page-tabs">
-            <div class="page-tab active" onclick="switchProfileTab('beats',this)">My beats</div>
-            <div class="page-tab" onclick="switchProfileTab('uploads',this)">My samples</div>
-            <div class="page-tab" onclick="switchProfileTab('purchased',this)">Purchased</div>
+            <div class="page-tab active" data-tab="beats" onclick="switchProfileTab('beats',this)">My beats</div>
+            <div class="page-tab" data-tab="uploads" onclick="switchProfileTab('uploads',this)">My samples</div>
+            <div class="page-tab" data-tab="purchased" onclick="switchProfileTab('purchased',this)">Purchased</div>
+            <div class="page-tab" data-tab="downloads" onclick="switchProfileTab('downloads',this)">Downloads</div>
           </div>
 
           <div id="profile-tab-beats">
@@ -432,6 +503,11 @@
           <div id="profile-tab-purchased" style="display:none">
             <div style="font-size:13px;color:var(--text2);margin-bottom:16px">NFT licences in your wallet</div>
             <div id="purchased-grid" style="display:flex;flex-direction:column;gap:8px"></div>
+          </div>
+
+          <div id="profile-tab-downloads" style="display:none">
+            <div style="font-size:13px;color:var(--text2);margin-bottom:16px">Samples you've downloaded</div>
+            <div id="downloads-grid" style="display:flex;flex-direction:column;gap:8px"></div>
           </div>
         </div>
       </div>
@@ -746,7 +822,7 @@ function renderSamples() {
       <button class="play-btn ${playing?'active':''}" onclick="event.stopPropagation();playSample(${s.id})">
         ${playing?`<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>`:`<svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>`}
       </button>
-      <div><div class="sample-name">${s.name}${s.pro?` <span class="badge badge-pro" style="font-size:10px;padding:1px 5px;vertical-align:middle">PRO</span>`:''}</div><div class="sample-artist artist-name-row">${artistMiniAvatarHTML(s.artist)}${displayArtistName(s.artist)}</div></div>
+      <div><div class="sample-name">${s.name}${s.pro?` <span class="badge badge-pro" style="font-size:10px;padding:1px 5px;vertical-align:middle">PRO</span>`:''}</div><div class="sample-artist artist-name-row" style="cursor:pointer" onclick="event.stopPropagation();viewArtistProfile('${s.artist}')">${artistMiniAvatarHTML(s.artist)}${displayArtistName(s.artist)}</div></div>
       <div class="sample-bpm">${s.bpm>0?s.bpm+' BPM':'—'}</div>
       <div class="sample-key">${s.key}</div>
       <div class="sample-dur">${s.dur}</div>
@@ -839,7 +915,7 @@ function beatCardHTML(b) {
     </div>
     <div class="beat-body">
       <div class="beat-title">${b.title}</div>
-      <div class="beat-artist artist-name-row">${artistMiniAvatarHTML(b.artist)}${displayArtistName(b.artist)}</div>
+      <div class="beat-artist artist-name-row" style="cursor:pointer" onclick="event.stopPropagation();viewArtistProfile('${b.artist}')">${artistMiniAvatarHTML(b.artist)}${displayArtistName(b.artist)}</div>
       <div class="beat-meta">
         ${b.bpm?`<span class="tag">${b.bpm} BPM</span>`:''}
         <span class="tag">${b.key}</span>
@@ -1040,6 +1116,79 @@ function downloadSample(id) {
   if (!s) return;
   if (!s.file_url) { alert('No audio file available for this sample yet.'); return; }
   window.open(s.file_url, '_blank');
+  logSampleDownload(s);
+}
+
+// Best-effort activity log — a failed insert here should never stop the
+// user from getting their file, so errors are swallowed after a console note.
+async function logSampleDownload(s) {
+  if (!walletConnected || !currentUserId) return;
+  try {
+    const { error } = await supabaseClient.from('sample_downloads').insert({
+      user_id: currentUserId,
+      wallet_address: walletAddress,
+      sample_id: String(s.id),
+      sample_title: s.name,
+      sample_artist: s.artist
+    });
+    if (error) throw error;
+  } catch(e) { console.log('Download logging failed (non-blocking):', e.message); }
+}
+
+// Loads the connected wallet's own download history for the Profile > Downloads tab
+async function loadMyDownloads() {
+  const grid = document.getElementById('downloads-grid');
+  if (!grid) return;
+  if (!walletConnected) { grid.innerHTML = `<div style="color:var(--text3);font-size:13px;padding:20px 0">Connect your wallet to see your downloads.</div>`; return; }
+  grid.innerHTML = `<div style="color:var(--text3);font-size:13px;padding:20px 0">Loading…</div>`;
+  try {
+    const data = await sbFetch(`sample_downloads?wallet_address=eq.${walletAddress}&select=*&order=downloaded_at.desc&limit=50`);
+    if (!data || !data.length) {
+      grid.innerHTML = `<div style="color:var(--text3);font-size:13px;padding:20px 0">No downloads yet. Grab a sample from the Samples page!</div>`;
+      return;
+    }
+    grid.innerHTML = data.map(d => `
+      <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:12px 16px;display:flex;align-items:center;gap:14px">
+        <div style="font-size:20px">🎵</div>
+        <div style="flex:1"><div style="font-size:14px;font-weight:600">${d.sample_title || 'Untitled sample'}</div><div style="font-size:12px;color:var(--text2)">${d.sample_artist || ''}</div></div>
+        <div style="font-size:11px;color:var(--text3)">${new Date(d.downloaded_at).toLocaleDateString()}</div>
+      </div>`).join('');
+  } catch(e) {
+    grid.innerHTML = `<div style="color:var(--text3);font-size:13px;padding:20px 0">Couldn't load your downloads right now.</div>`;
+    console.log('loadMyDownloads:', e.message);
+  }
+}
+
+// Loads sitewide activity for the Trending page: recently sold beats +
+// recently downloaded samples, across every user (not just your own).
+async function loadTrendingFeed() {
+  const beatsGrid = document.getElementById('trending-beats-grid');
+  const downloadsGrid = document.getElementById('trending-downloads-grid');
+
+  if (beatsGrid) {
+    const recentlySold = BEATS.filter(b => b.sold).sort((a,b) => b.id - a.id).slice(0, 12);
+    beatsGrid.innerHTML = recentlySold.length
+      ? recentlySold.map(b => beatCardHTML(b)).join('')
+      : `<div style="color:var(--text3);font-size:13px;padding:20px 0">No beats sold yet — be the first!</div>`;
+  }
+
+  if (downloadsGrid) {
+    downloadsGrid.innerHTML = `<div style="color:var(--text3);font-size:13px;padding:20px 0">Loading…</div>`;
+    try {
+      const data = await sbFetch('sample_downloads?select=*&order=downloaded_at.desc&limit=20');
+      downloadsGrid.innerHTML = (data && data.length)
+        ? data.map(d => `
+          <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:12px 16px;display:flex;align-items:center;gap:14px">
+            <div style="font-size:20px">⬇️</div>
+            <div style="flex:1"><div style="font-size:14px;font-weight:600">${d.sample_title || 'Untitled sample'}</div><div style="font-size:12px;color:var(--text2)">${d.sample_artist || ''} · downloaded by ${shortAddr(d.wallet_address)}</div></div>
+            <div style="font-size:11px;color:var(--text3)">${new Date(d.downloaded_at).toLocaleDateString()}</div>
+          </div>`).join('')
+        : `<div style="color:var(--text3);font-size:13px;padding:20px 0">No downloads yet — be the first!</div>`;
+    } catch(e) {
+      downloadsGrid.innerHTML = `<div style="color:var(--text3);font-size:13px;padding:20px 0">Couldn't load recent downloads right now.</div>`;
+      console.log('loadTrendingFeed downloads:', e.message);
+    }
+  }
 }
 
 // Beats are exclusive, one-buyer licences — only the buyer (or the seller,
@@ -1112,8 +1261,97 @@ function setBeatFilter(type,btn) {
 }
 
 // ---- PAGES ----
-function showPage(page,el) {
+let viewingArtistWallet = null; // short-form wallet of the artist profile currently open
+
+// Opens a read-only public profile for any creator — reachable by clicking
+// their name/avatar anywhere (sample rows, beat cards) or from the Artists directory.
+function viewArtistProfile(shortWallet) {
+  viewingArtistWallet = shortWallet;
   document.querySelectorAll('.page-view').forEach(p=>p.classList.remove('active'));
+  document.getElementById('page-artist').classList.add('active');
+  document.querySelectorAll('.sidebar-item').forEach(i=>i.classList.remove('active'));
+  renderArtistProfile();
+}
+
+function renderArtistProfile() {
+  const shortWallet = viewingArtistWallet;
+  const p = profilesByShortWallet[shortWallet];
+  const name = (p && p.display_name) || shortWallet;
+
+  document.getElementById('artist-profile-name').textContent = name;
+  document.getElementById('artist-profile-addr').textContent = shortWallet;
+  renderAvatarInto(document.getElementById('artist-profile-avatar'), p, shortWallet);
+
+  const theirSamples = SAMPLES.filter(s => s.artist === shortWallet);
+  const theirBeats = BEATS.filter(b => b.artist === shortWallet);
+
+  document.getElementById('artist-samples-count').textContent = theirSamples.length;
+  document.getElementById('artist-beats-count').textContent = theirBeats.length;
+  document.getElementById('artist-sold-count').textContent = theirBeats.filter(b=>b.sold).length;
+
+  const beatsGrid = document.getElementById('artist-beats-grid');
+  beatsGrid.innerHTML = theirBeats.length
+    ? theirBeats.map(b => beatCardHTML(b)).join('')
+    : `<div class="empty-state"><div class="empty-state-icon">🎹</div><div class="empty-state-text">No beats listed yet</div></div>`;
+
+  const samplesGrid = document.getElementById('artist-samples-grid');
+  samplesGrid.innerHTML = theirSamples.length
+    ? theirSamples.map(s => `
+      <div class="my-sample-row">
+        <button class="play-btn" onclick="playSample(${s.id})">
+          <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        </button>
+        <div class="my-sample-info">
+          <div class="my-sample-name">${s.name}${s.pro ? ' <span class="badge badge-pro" style="font-size:10px;padding:1px 5px;vertical-align:middle">PRO</span>' : ''}</div>
+          <div class="my-sample-meta">
+            ${s.bpm > 0 ? `<span>${s.bpm} BPM</span>` : ''}
+            ${s.key !== '—' ? `<span>${s.key}</span>` : ''}
+            ${s.tags.slice(0,3).map(t => `<span class="tag">${t}</span>`).join('')}
+          </div>
+        </div>
+        <div class="my-sample-actions">
+          ${s.pro&&!walletConnected?`<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();alert('Hold $SAMPLA to access premium samples.')">🔒</button>`:`<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();downloadSample(${s.id})">↓</button>`}
+        </div>
+      </div>`).join('')
+    : `<div class="empty-state"><div class="empty-state-icon">🎵</div><div class="empty-state-text">No samples uploaded yet</div></div>`;
+}
+
+function switchArtistTab(tab, el) {
+  document.querySelectorAll('#page-artist .page-tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('artist-tab-beats').style.display = tab==='beats'?'block':'none';
+  document.getElementById('artist-tab-samples').style.display = tab==='samples'?'block':'none';
+}
+
+// Builds the Artists directory from whoever actually has samples or beats
+// listed — pulling from `profiles` alone would surface empty/inactive accounts.
+function renderArtistsDirectory() {
+  const grid = document.getElementById('artists-directory-grid');
+  if (!grid) return;
+  const wallets = new Set();
+  SAMPLES.forEach(s => { if (s.artist) wallets.add(s.artist); });
+  BEATS.forEach(b => { if (b.artist) wallets.add(b.artist); });
+  const list = [...wallets];
+  if (!list.length) {
+    grid.innerHTML = `<div class="empty-state"><div class="empty-state-icon">🎤</div><div class="empty-state-text">No artists yet</div></div>`;
+    return;
+  }
+  grid.innerHTML = list.map(shortWallet => {
+    const p = profilesByShortWallet[shortWallet];
+    const name = (p && p.display_name) || shortWallet;
+    const sampleCount = SAMPLES.filter(s=>s.artist===shortWallet).length;
+    const beatCount = BEATS.filter(b=>b.artist===shortWallet).length;
+    return `<div class="wallet-option-btn" onclick="viewArtistProfile('${shortWallet}')" style="justify-content:flex-start">
+      <span class="avatar" style="width:40px;height:40px;font-size:16px;flex-shrink:0">${avatarHTML(p, shortWallet)}</span>
+      <span style="flex:1">
+        <div style="font-weight:700">${name}</div>
+        <div style="font-size:12px;color:var(--text3);font-weight:400">${sampleCount} sample${sampleCount!==1?'s':''} · ${beatCount} beat${beatCount!==1?'s':''}</div>
+      </span>
+    </div>`;
+  }).join('');
+}
+
+function showPage(page,el) {
   document.getElementById('page-'+page).classList.add('active');
   document.querySelectorAll('.sidebar-item').forEach(i=>i.classList.remove('active'));
   if(el) el.classList.add('active');
@@ -1122,6 +1360,18 @@ function showPage(page,el) {
   btn.onclick = page==='beats' ? showBeatUpload : showUploadForPage;
   if(page==='beats') renderBeats();
   if(page==='profile'){renderSamples();renderBeats();updateStats();}
+  if(page==='trending') loadTrendingFeed();
+  if(page==='artists') renderArtistsDirectory();
+}
+
+// Jumps straight to a profile tab from the sidebar (e.g. "Downloads",
+// "Purchased beats") instead of dumping the user on the generic
+// marketplace pages those links used to point at.
+function goToProfileTab(tab, sidebarEl) {
+  if (!walletConnected) { connectWallet(); return; }
+  showPage('profile', sidebarEl);
+  const tabEl = document.querySelector(`.page-tab[data-tab="${tab}"]`);
+  if (tabEl) switchProfileTab(tab, tabEl);
 }
 
 function showUploadForPage() {
@@ -1136,7 +1386,9 @@ function switchProfileTab(tab, el) {
   document.getElementById('profile-tab-uploads').style.display = tab==='uploads'?'block':'none';
   document.getElementById('profile-tab-beats').style.display = tab==='beats'?'block':'none';
   document.getElementById('profile-tab-purchased').style.display = tab==='purchased'?'block':'none';
+  document.getElementById('profile-tab-downloads').style.display = tab==='downloads'?'block':'none';
   renderBeats();
+  if (tab==='downloads') loadMyDownloads();
 }
 
 // ---- MODALS ----
@@ -1265,15 +1517,15 @@ function shortAddr(a) {
 }
 
 // Renders a profile's avatar (uploaded photo > chosen emoji > wallet initials) into a container element
+function avatarHTML(profile, fallbackShort) {
+  if (profile && profile.avatar_url) return `<img src="${profile.avatar_url}" class="avatar-img" alt="avatar">`;
+  if (profile && profile.avatar_emoji) return profile.avatar_emoji;
+  return fallbackShort ? fallbackShort.slice(0,2).toUpperCase() : '—';
+}
+
 function renderAvatarInto(el, profile, fallbackShort) {
   if (!el) return;
-  if (profile && profile.avatar_url) {
-    el.innerHTML = `<img src="${profile.avatar_url}" class="avatar-img" alt="avatar">`;
-  } else if (profile && profile.avatar_emoji) {
-    el.textContent = profile.avatar_emoji;
-  } else {
-    el.textContent = fallbackShort ? fallbackShort.slice(0,2).toUpperCase() : '—';
-  }
+  el.innerHTML = avatarHTML(profile, fallbackShort);
 }
 
 // Given a short wallet address (e.g. "7xKp...m4Rq"), returns the creator's chosen
