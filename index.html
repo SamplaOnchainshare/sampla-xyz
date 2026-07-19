@@ -193,6 +193,9 @@
   .artist-name-row { display: flex; align-items: center; gap: 5px; }
   .artist-mini-avatar { width: 14px; height: 14px; border-radius: 50%; overflow: hidden; display: flex; align-items: center; justify-content: center; font-size: 9px; flex-shrink: 0; background: var(--bg3); }
   .artist-mini-avatar img { width: 100%; height: 100%; object-fit: cover; }
+  .wallet-option-btn { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 14px; background: var(--bg3); border: 1px solid var(--border2); border-radius: 10px; color: var(--text1); font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.12s; text-align: left; }
+  .wallet-option-btn:hover { border-color: var(--accent); background: var(--accent2); }
+  .wallet-option-icon { font-size: 22px; width: 26px; text-align: center; flex-shrink: 0; }
   .profile-name { font-size: 17px; font-weight: 600; }
   .profile-addr { font-size: 11px; color: var(--text3); font-family: monospace; margin-top: 2px; }
   .profile-stats { display: flex; gap: 20px; margin-top: 10px; }
@@ -602,6 +605,17 @@
   </div>
 </div>
 
+<!-- Wallet select modal -->
+<div class="modal-overlay" id="wallet-select-modal" style="display:none" onclick="hideModal('wallet-select-modal',event)">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-title">Connect a wallet</div>
+    <div id="wallet-select-list" style="display:flex;flex-direction:column;gap:8px"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="hideModal('wallet-select-modal')">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <!-- Profile edit modal -->
 <div class="modal-overlay" id="profile-edit-modal" style="display:none" onclick="hideModal('profile-edit-modal',event)">
   <div class="modal" onclick="event.stopPropagation()">
@@ -673,6 +687,7 @@ let filteredBeats = [...BEATS]; let activeBeatGenre = null; let beatAvailableOnl
 let pendingBeatId = null;
 let walletAddress = null;
 let currentUserId = null;
+let connectedProvider = null;
 let myProfile = { display_name: null, avatar_emoji: null, avatar_url: null };
 let profilesByShortWallet = {};
 let pendingAvatarFile = null;
@@ -865,7 +880,7 @@ async function confirmBuy() {
   if (!b.sellerWallet) { alert("This beat is missing the seller's wallet address and can't be purchased yet."); return; }
   if (b.sellerWallet === walletAddress) { alert("You can't buy your own beat."); return; }
 
-  const provider = getSolanaProvider();
+  const provider = connectedProvider || getPreferredProvider();
   if (!provider) { alert('No Solana wallet found. Install Phantom, Backpack, or Solflare.'); return; }
 
   const btn = document.getElementById('confirm-buy-btn');
@@ -1284,12 +1299,67 @@ function getSolanaProvider() {
   return null;
 }
 
+const WALLET_PREF_KEY = 'sampla_wallet_pref';
+
+// Returns every Solana wallet extension currently detected in the browser,
+// so the user can pick which one to connect instead of always getting
+// whichever one happens to be first in a hardcoded priority order.
+function detectSolanaWallets() {
+  const wallets = [];
+  if (window.backpack?.isBackpack) {
+    wallets.push({ name: 'Backpack', icon: '🎒', provider: window.backpack.solana || window.backpack });
+  }
+  if (window.phantom?.solana?.isPhantom) {
+    wallets.push({ name: 'Phantom', icon: '👻', provider: window.phantom.solana });
+  }
+  if (window.solflare?.isSolflare) {
+    wallets.push({ name: 'Solflare', icon: '🔆', provider: window.solflare });
+  }
+  // Some wallets (or the Seeker built-in wallet) only expose window.solana
+  // without a matching isX flag — surface it too if we haven't already.
+  if (window.solana && !wallets.some(w => w.provider === window.solana)) {
+    wallets.push({ name: 'Solana wallet', icon: '🔌', provider: window.solana });
+  }
+  return wallets;
+}
+
+// On silent reconnect (page load) we don't want to prompt with a picker —
+// try the wallet the user explicitly chose last time first, then fall back
+// to the old hardcoded priority order if that one isn't installed anymore.
+function getPreferredProvider() {
+  const wallets = detectSolanaWallets();
+  const pref = localStorage.getItem(WALLET_PREF_KEY);
+  const match = wallets.find(w => w.name === pref);
+  if (match) return match.provider;
+  return getSolanaProvider();
+}
+
+function openWalletSelectModal() {
+  const wallets = detectSolanaWallets();
+  if (wallets.length === 0) {
+    alert('No Solana wallet found!\n\nPlease install Phantom, Backpack, or Solflare.\nOn Seeker: use the built-in wallet.');
+    return;
+  }
+  if (wallets.length === 1) {
+    // Nothing to choose between — connect straight away.
+    connectWallet(wallets[0].provider, wallets[0].name);
+    return;
+  }
+  const list = document.getElementById('wallet-select-list');
+  list.innerHTML = wallets.map((w, i) =>
+    `<button class="wallet-option-btn" onclick="connectWallet(detectSolanaWallets()[${i}].provider, '${w.name}')">
+      <span class="wallet-option-icon">${w.icon}</span> ${w.name}
+    </button>`
+  ).join('');
+  document.getElementById('wallet-select-modal').style.display = 'flex';
+}
+
 // ---- WALLET BUTTON: connect if logged out, open dropdown if logged in ----
 function onWalletBtnClick() {
   if (walletConnected) {
     toggleWalletDropdown();
   } else {
-    connectWallet();
+    openWalletSelectModal();
   }
 }
 
@@ -1455,9 +1525,10 @@ async function disconnectWallet() {
   const label = document.getElementById('wallet-label');
   try {
     await supabaseClient.auth.signOut();
-    const provider = getSolanaProvider();
+    const provider = connectedProvider || getPreferredProvider();
     if (provider && provider.disconnect) await provider.disconnect();
   } catch(e) {}
+  connectedProvider = null;
   walletConnected = false;
   walletAddress = null;
   dot.style.background = 'var(--text3)';
@@ -1467,12 +1538,14 @@ async function disconnectWallet() {
   updateStats();
 }
 
-async function connectWallet() {
+async function connectWallet(chosenProvider, walletName) {
+  hideModal('wallet-select-modal');
   const dot = document.getElementById('wallet-dot');
   const label = document.getElementById('wallet-label');
 
-  // Detect whichever supported Solana wallet is installed
-  const provider = getSolanaProvider();
+  // Use whatever the picker passed in; fall back to auto-detect for any
+  // code path that still calls connectWallet() without arguments.
+  const provider = chosenProvider || getSolanaProvider();
 
   if(!provider) {
     alert('No Solana wallet found!\n\nPlease install Phantom, Backpack, or Solflare.\nOn Seeker: use the built-in wallet.');
@@ -1497,6 +1570,8 @@ async function connectWallet() {
     walletAddress = provider.publicKey.toString();
     walletConnected = true;
     currentUserId = data.user.id;
+    connectedProvider = provider;
+    if (walletName) localStorage.setItem(WALLET_PREF_KEY, walletName);
     const short = walletAddress.slice(0,4) + '...' + walletAddress.slice(-4);
     dot.style.background = 'var(--accent)';
     label.textContent = short;
@@ -1904,7 +1979,7 @@ async function saveProfileCustomization() {
 window.addEventListener('load', async () => {
   try {
     const { data: { session } } = await supabaseClient.auth.getSession();
-    const provider = getSolanaProvider();
+    const provider = getPreferredProvider();
 
     if (session && provider) {
       // Phantom doesn't expose publicKey after a page reload unless we
@@ -1928,6 +2003,7 @@ window.addEventListener('load', async () => {
         walletAddress = reconnectedWallet;
         walletConnected = true;
         currentUserId = session.user.id;
+        connectedProvider = provider;
         const short = walletAddress.slice(0,4) + '...' + walletAddress.slice(-4);
         document.getElementById('wallet-dot').style.background = 'var(--accent)';
         document.getElementById('wallet-label').textContent = short;
