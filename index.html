@@ -489,7 +489,7 @@
             <button class="btn btn-accent btn-sm" style="margin-left:auto" onclick="window.open('https://pump.fun/coin/4JEnUAQbhkqG2cr5VYktmzh2zQoXwcMpVvusekFVpump','_blank')">Buy $SAMPLA →</button>
           </div>
 
-          <div class="page-tabs">
+          <div class="page-tabs" id="profile-tabs">
             <div class="page-tab active" data-tab="beats" onclick="switchProfileTab('beats',this)">My beats</div>
             <div class="page-tab" data-tab="uploads" onclick="switchProfileTab('uploads',this)">My samples</div>
             <div class="page-tab" data-tab="purchased" onclick="switchProfileTab('purchased',this)">Purchased</div>
@@ -1594,7 +1594,7 @@ function updateProfileTabVisibility() {
 // If the currently-active tab just got hidden, fall back to the first
 // visible one (Following is never hidden, so there's always a fallback).
 function ensureActiveProfileTab() {
-  const tabs = [...document.querySelectorAll('.page-tabs .page-tab')];
+  const tabs = [...document.querySelectorAll('#profile-tabs .page-tab')];
   const activeTab = tabs.find(t => t.classList.contains('active'));
   if (activeTab && activeTab.style.display !== 'none') return;
   const firstVisible = tabs.find(t => t.style.display !== 'none');
@@ -1603,7 +1603,7 @@ function ensureActiveProfileTab() {
 
 
 function switchProfileTab(tab, el) {
-  document.querySelectorAll('.page-tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('#profile-tabs .page-tab').forEach(t=>t.classList.remove('active'));
   el.classList.add('active');
   document.getElementById('profile-tab-uploads').style.display = tab==='uploads'?'block':'none';
   document.getElementById('profile-tab-beats').style.display = tab==='beats'?'block':'none';
@@ -2469,7 +2469,9 @@ window.addEventListener('load', async () => {
       let mismatchDetected = false;
       try {
         const resp = await provider.connect({ onlyIfTrusted: true });
-        const reconnectedWallet = resp.publicKey.toString();
+        const pubkey = provider.publicKey || resp?.publicKey;
+        if (!pubkey) throw new Error('Wallet connected but returned no public key.');
+        const reconnectedWallet = pubkey.toString();
 
         // Guard against a stale session belonging to a *different* wallet
         // than the one currently connected (e.g. the user switched wallets
