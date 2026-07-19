@@ -335,10 +335,10 @@
             <div class="token-banner-text">Hold <strong>$SAMPLA</strong> to unlock premium packs and buy beats on the marketplace. <a href="https://pump.fun/coin/4JEnUAQbhkqG2cr5VYktmzh2zQoXwcMpVvusekFVpump" target="_blank" style="color:var(--accent);text-decoration:none">Buy $SAMPLA →</a></div>
           </div>
           <div class="stats-row">
-            <div class="stat-card"><div class="stat-val" id="stat-samples">—</div><div class="stat-label">Samples available</div></div>
+            <div class="stat-card"><div class="stat-val" id="stat-users">—</div><div class="stat-label">Users</div></div>
             <div class="stat-card"><div class="stat-val" id="stat-creators">—</div><div class="stat-label">Creators</div></div>
             <div class="stat-card"><div class="stat-val" id="stat-beats">—</div><div class="stat-label">Beats listed</div></div>
-            <div class="stat-card"><div class="stat-val" style="color:var(--accent)">$SAMPLA</div><div class="stat-label">Platform token</div></div>
+            <div class="stat-card"><div class="stat-val" id="stat-samples">—</div><div class="stat-label">Samples available</div></div>
           </div>
           <div class="filters">
             <input class="filter-input" placeholder="Search samples..." oninput="filterSamples(this.value)">
@@ -434,13 +434,16 @@
                 <div class="profile-stat"><strong id="artist-samples-count">0</strong> samples</div>
                 <div class="profile-stat"><strong id="artist-beats-count">0</strong> beats listed</div>
                 <div class="profile-stat"><strong id="artist-sold-count">0</strong> beats sold</div>
+                <div class="profile-stat"><strong id="artist-followers-count">0</strong> followers</div>
               </div>
             </div>
+            <button class="btn btn-accent btn-sm" style="margin-left:auto" id="artist-follow-btn" onclick="toggleFollow(viewingArtistWallet)">Follow</button>
           </div>
 
           <div class="page-tabs">
             <div class="page-tab active" data-tab="artist-beats" onclick="switchArtistTab('beats',this)">Beats</div>
             <div class="page-tab" data-tab="artist-samples" onclick="switchArtistTab('samples',this)">Samples</div>
+            <div class="page-tab" data-tab="artist-following" onclick="switchArtistTab('following',this)">Following</div>
           </div>
 
           <div id="artist-tab-beats">
@@ -448,6 +451,9 @@
           </div>
           <div id="artist-tab-samples" style="display:none">
             <div class="samples-grid" id="artist-samples-grid"></div>
+          </div>
+          <div id="artist-tab-following" style="display:none">
+            <div id="artist-following-grid" style="display:flex;flex-direction:column;gap:8px"></div>
           </div>
         </div>
       </div>
@@ -464,6 +470,8 @@
                 <div class="profile-stat"><strong id="profile-uploads-stat">0</strong> uploads</div>
                 <div class="profile-stat"><strong id="profile-beats-stat">0</strong> beats listed</div>
                 <div class="profile-stat"><strong id="profile-sold-stat">0</strong> beats sold</div>
+                <div class="profile-stat"><strong id="profile-followers-stat">0</strong> followers</div>
+                <div class="profile-stat"><strong id="profile-following-stat">0</strong> following</div>
               </div>
             </div>
             <button class="btn btn-ghost btn-sm" style="margin-left:auto" onclick="openProfileEditModal()">Edit profile</button>
@@ -482,6 +490,7 @@
             <div class="page-tab" data-tab="uploads" onclick="switchProfileTab('uploads',this)">My samples</div>
             <div class="page-tab" data-tab="purchased" onclick="switchProfileTab('purchased',this)">Purchased</div>
             <div class="page-tab" data-tab="downloads" onclick="switchProfileTab('downloads',this)">Downloads</div>
+            <div class="page-tab" data-tab="following" onclick="switchProfileTab('following',this)">Following</div>
           </div>
 
           <div id="profile-tab-beats">
@@ -508,6 +517,11 @@
           <div id="profile-tab-downloads" style="display:none">
             <div style="font-size:13px;color:var(--text2);margin-bottom:16px">Samples you've downloaded</div>
             <div id="downloads-grid" style="display:flex;flex-direction:column;gap:8px"></div>
+          </div>
+
+          <div id="profile-tab-following" style="display:none">
+            <div style="font-size:13px;color:var(--text2);margin-bottom:16px">Artists and profiles you follow</div>
+            <div id="following-grid" style="display:flex;flex-direction:column;gap:8px"></div>
           </div>
         </div>
       </div>
@@ -776,9 +790,11 @@ const AVATAR_EMOJIS = ['🎧','🎤','🎹','🥁','🎸','🎛️','🔥','⚡'
 // ---- REAL STATS (no more hardcoded fake numbers) ----
 function updateStats() {
   // Top marketplace banner
+  const statUsers = document.getElementById('stat-users');
   const statSamples = document.getElementById('stat-samples');
   const statCreators = document.getElementById('stat-creators');
   const statBeats = document.getElementById('stat-beats');
+  if (statUsers) statUsers.textContent = Object.keys(profilesByShortWallet).length.toLocaleString();
   if (statSamples) statSamples.textContent = SAMPLES.length.toLocaleString();
   if (statBeats) statBeats.textContent = BEATS.length.toLocaleString();
 
@@ -803,6 +819,8 @@ function updateStats() {
   const uploadsEl = document.getElementById('profile-uploads-stat');
   const beatsEl = document.getElementById('profile-beats-stat');
   const soldEl = document.getElementById('profile-sold-stat');
+  const followersEl = document.getElementById('profile-followers-stat');
+  const followingEl = document.getElementById('profile-following-stat');
 
   if (nameEl) nameEl.textContent = myProfile.display_name || short || 'Not connected';
   if (addrEl) addrEl.textContent = walletAddress || 'Connect your wallet to see your profile';
@@ -811,6 +829,8 @@ function updateStats() {
   if (uploadsEl) uploadsEl.textContent = short ? SAMPLES.filter(s => s.artist === short).length : 0;
   if (beatsEl) beatsEl.textContent = short ? BEATS.filter(b => b.artist === short).length : 0;
   if (soldEl) soldEl.textContent = short ? BEATS.filter(b => b.artist === short && b.sold).length : 0;
+  if (followersEl) followersEl.textContent = short ? followerCount(short) : 0;
+  if (followingEl) followingEl.textContent = followingSet.size;
 }
 
 function renderSamples() {
@@ -1263,6 +1283,72 @@ function setBeatFilter(type,btn) {
 // ---- PAGES ----
 let viewingArtistWallet = null; // short-form wallet of the artist profile currently open
 
+// ---- FOLLOW SYSTEM ----
+let allFollows = []; // raw {follower_wallet, following_wallet} rows, sitewide
+let followingSet = new Set(); // short wallets the CURRENTLY connected wallet follows
+
+async function loadAllFollows() {
+  try {
+    allFollows = await sbFetch('follows?select=follower_wallet,following_wallet') || [];
+    const myShort = walletAddress ? shortAddr(walletAddress) : null;
+    followingSet = new Set(myShort ? allFollows.filter(f => f.follower_wallet === myShort).map(f => f.following_wallet) : []);
+  } catch(e) { console.log('loadAllFollows:', e.message); }
+}
+
+function followerCount(shortWallet) {
+  return allFollows.filter(f => f.following_wallet === shortWallet).length;
+}
+
+async function toggleFollow(shortWallet) {
+  if (!walletConnected) { connectWallet(); return; }
+  const myShort = shortAddr(walletAddress);
+  if (myShort === shortWallet) { alert("You can't follow yourself."); return; }
+
+  const isFollowing = followingSet.has(shortWallet);
+  try {
+    if (isFollowing) {
+      const { error } = await supabaseClient.from('follows').delete()
+        .eq('follower_wallet', myShort).eq('following_wallet', shortWallet);
+      if (error) throw error;
+      followingSet.delete(shortWallet);
+    } else {
+      const { error } = await supabaseClient.from('follows').insert({
+        follower_id: currentUserId, follower_wallet: myShort, following_wallet: shortWallet
+      });
+      if (error) throw error;
+      followingSet.add(shortWallet);
+    }
+    await loadAllFollows();
+    if (viewingArtistWallet === shortWallet) renderArtistProfile();
+    if (document.getElementById('page-artists').classList.contains('active')) renderArtistsDirectory();
+    updateStats();
+  } catch(e) {
+    alert('Follow action failed: ' + e.message);
+  }
+}
+
+// Renders the "Following" tab on My Profile — everyone the connected wallet follows
+function renderMyFollowing() {
+  const grid = document.getElementById('following-grid');
+  if (!grid) return;
+  const list = [...followingSet];
+  if (!list.length) {
+    grid.innerHTML = `<div style="color:var(--text3);font-size:13px;padding:20px 0">Not following anyone yet — check out the Artists page!</div>`;
+    return;
+  }
+  grid.innerHTML = list.map(shortWallet => {
+    const p = profilesByShortWallet[shortWallet];
+    const name = (p && p.display_name) || shortWallet;
+    return `<div class="wallet-option-btn" style="justify-content:flex-start">
+      <span class="avatar" style="width:36px;height:36px;font-size:14px;flex-shrink:0;cursor:pointer" onclick="viewArtistProfile('${shortWallet}')">${avatarHTML(p, shortWallet)}</span>
+      <span style="flex:1;cursor:pointer" onclick="viewArtistProfile('${shortWallet}')">
+        <div style="font-weight:700">${name}</div>
+      </span>
+      <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();toggleFollow('${shortWallet}')">Unfollow</button>
+    </div>`;
+  }).join('');
+}
+
 // Opens a read-only public profile for any creator — reachable by clicking
 // their name/avatar anywhere (sample rows, beat cards) or from the Artists directory.
 function viewArtistProfile(shortWallet) {
@@ -1288,6 +1374,19 @@ function renderArtistProfile() {
   document.getElementById('artist-samples-count').textContent = theirSamples.length;
   document.getElementById('artist-beats-count').textContent = theirBeats.length;
   document.getElementById('artist-sold-count').textContent = theirBeats.filter(b=>b.sold).length;
+  document.getElementById('artist-followers-count').textContent = followerCount(shortWallet);
+
+  const followBtn = document.getElementById('artist-follow-btn');
+  const myShort = walletAddress ? shortAddr(walletAddress) : null;
+  if (myShort === shortWallet) {
+    followBtn.style.display = 'none';
+  } else {
+    followBtn.style.display = '';
+    const isFollowing = followingSet.has(shortWallet);
+    followBtn.textContent = isFollowing ? 'Following ✓' : 'Follow';
+    followBtn.className = isFollowing ? 'btn btn-ghost btn-sm' : 'btn btn-accent btn-sm';
+    followBtn.style.marginLeft = 'auto';
+  }
 
   const beatsGrid = document.getElementById('artist-beats-grid');
   beatsGrid.innerHTML = theirBeats.length
@@ -1314,6 +1413,19 @@ function renderArtistProfile() {
         </div>
       </div>`).join('')
     : `<div class="empty-state"><div class="empty-state-icon">🎵</div><div class="empty-state-text">No samples uploaded yet</div></div>`;
+
+  const followingGrid = document.getElementById('artist-following-grid');
+  const theirFollowing = allFollows.filter(f => f.follower_wallet === shortWallet).map(f => f.following_wallet);
+  followingGrid.innerHTML = theirFollowing.length
+    ? theirFollowing.map(w => {
+        const fp = profilesByShortWallet[w];
+        const fname = (fp && fp.display_name) || w;
+        return `<div class="wallet-option-btn" onclick="viewArtistProfile('${w}')" style="justify-content:flex-start">
+          <span class="avatar" style="width:36px;height:36px;font-size:14px;flex-shrink:0">${avatarHTML(fp, w)}</span>
+          <span style="font-weight:700">${fname}</span>
+        </div>`;
+      }).join('')
+    : `<div style="color:var(--text3);font-size:13px;padding:20px 0">Not following anyone yet.</div>`;
 }
 
 function switchArtistTab(tab, el) {
@@ -1321,10 +1433,13 @@ function switchArtistTab(tab, el) {
   el.classList.add('active');
   document.getElementById('artist-tab-beats').style.display = tab==='beats'?'block':'none';
   document.getElementById('artist-tab-samples').style.display = tab==='samples'?'block':'none';
+  document.getElementById('artist-tab-following').style.display = tab==='following'?'block':'none';
 }
 
 // Builds the Artists directory from whoever actually has samples or beats
-// listed — pulling from `profiles` alone would surface empty/inactive accounts.
+// listed — pulling in every follow relationship too would flood this list
+// with buyer-only wallets. Who an artist follows is visible on their own
+// profile instead (click their avatar there).
 function renderArtistsDirectory() {
   const grid = document.getElementById('artists-directory-grid');
   if (!grid) return;
@@ -1341,11 +1456,12 @@ function renderArtistsDirectory() {
     const name = (p && p.display_name) || shortWallet;
     const sampleCount = SAMPLES.filter(s=>s.artist===shortWallet).length;
     const beatCount = BEATS.filter(b=>b.artist===shortWallet).length;
+    const followers = followerCount(shortWallet);
     return `<div class="wallet-option-btn" onclick="viewArtistProfile('${shortWallet}')" style="justify-content:flex-start">
       <span class="avatar" style="width:40px;height:40px;font-size:16px;flex-shrink:0">${avatarHTML(p, shortWallet)}</span>
       <span style="flex:1">
         <div style="font-weight:700">${name}</div>
-        <div style="font-size:12px;color:var(--text3);font-weight:400">${sampleCount} sample${sampleCount!==1?'s':''} · ${beatCount} beat${beatCount!==1?'s':''}</div>
+        <div style="font-size:12px;color:var(--text3);font-weight:400">${sampleCount} sample${sampleCount!==1?'s':''} · ${beatCount} beat${beatCount!==1?'s':''} · ${followers} follower${followers!==1?'s':''}</div>
       </span>
     </div>`;
   }).join('');
@@ -1387,8 +1503,10 @@ function switchProfileTab(tab, el) {
   document.getElementById('profile-tab-beats').style.display = tab==='beats'?'block':'none';
   document.getElementById('profile-tab-purchased').style.display = tab==='purchased'?'block':'none';
   document.getElementById('profile-tab-downloads').style.display = tab==='downloads'?'block':'none';
+  document.getElementById('profile-tab-following').style.display = tab==='following'?'block':'none';
   renderBeats();
   if (tab==='downloads') loadMyDownloads();
+  if (tab==='following') renderMyFollowing();
 }
 
 // ---- MODALS ----
@@ -1830,6 +1948,7 @@ async function connectWallet(chosenProvider, walletName) {
     await saveProfileToDB(walletAddress, short, data.user.id);
     await loadMyProfile();
     loadAllProfiles();
+    await loadAllFollows();
     syncPurchasedBeats();
     renderSamples();
     renderBeats();
@@ -2107,6 +2226,7 @@ async function loadAllProfiles() {
     });
     renderSamples();
     renderBeats();
+    updateStats();
   } catch(e) { console.log('loadAllProfiles:', e.message); }
 }
 
@@ -2274,6 +2394,7 @@ window.addEventListener('load', async () => {
   loadSamplesFromDB();
   loadBeatsFromDB();
   loadAllProfiles();
+  loadAllFollows();
 });
 </script>
 <div style="position:fixed;bottom:0;left:0;right:0;display:flex;justify-content:center;pointer-events:none;z-index:99">
