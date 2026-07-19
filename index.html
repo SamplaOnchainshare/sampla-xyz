@@ -440,7 +440,7 @@
             <button class="btn btn-accent btn-sm" style="margin-left:auto" id="artist-follow-btn" onclick="toggleFollow(viewingArtistWallet)">Follow</button>
           </div>
 
-          <div class="page-tabs">
+          <div class="page-tabs" id="artist-tabs">
             <div class="page-tab active" data-tab="artist-beats" onclick="switchArtistTab('beats',this)">Beats</div>
             <div class="page-tab" data-tab="artist-samples" onclick="switchArtistTab('samples',this)">Samples</div>
             <div class="page-tab" data-tab="artist-following" onclick="switchArtistTab('following',this)">Following</div>
@@ -1420,6 +1420,18 @@ function renderArtistProfile() {
 
   const theirSamples = SAMPLES.filter(s => s.artist === shortWallet);
   const theirBeats = BEATS.filter(b => b.artist === shortWallet);
+
+  const beatsTab = document.querySelector('#artist-tabs .page-tab[data-tab="artist-beats"]');
+  const samplesTab = document.querySelector('#artist-tabs .page-tab[data-tab="artist-samples"]');
+  beatsTab.style.display = theirBeats.length ? '' : 'none';
+  samplesTab.style.display = theirSamples.length ? '' : 'none';
+
+  const tabs = [...document.querySelectorAll('#artist-tabs .page-tab')];
+  const activeTab = tabs.find(t => t.classList.contains('active'));
+  if (!activeTab || activeTab.style.display === 'none') {
+    const firstVisible = tabs.find(t => t.style.display !== 'none');
+    if (firstVisible) switchArtistTab(firstVisible.dataset.tab.replace('artist-',''), firstVisible);
+  }
 
   document.getElementById('artist-samples-count').textContent = theirSamples.length;
   document.getElementById('artist-beats-count').textContent = theirBeats.length;
