@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Sampla — Sample Exchange</title>
 <style>
+  @keyframes sampla-spin { to { transform: rotate(360deg); } }
   :root {
     --bg: #0a0a0a;
     --bg2: #111111;
@@ -256,7 +257,7 @@
 
 <div class="app">
   <header class="header">
-    <div class="logo" style="cursor:pointer" onclick="showPage('samples', document.getElementById('nav-samples'))" title="Sampla">SAMPL<span>A</span></div>
+    <div class="logo" style="cursor:pointer" onclick="showPage('samples', document.getElementById('nav-samples'))" title="Sampla">SAMPL<span>A</span>.XY<span>Z</span></div>
     <div class="header-right">
       <div class="wallet-widget">
         <button class="wallet-btn" onclick="onWalletBtnClick()">
@@ -583,9 +584,13 @@
       <label class="form-label">Tags (comma separated)</label>
       <input class="form-input" id="upload-tags" placeholder="trap, dark, melody">
     </div>
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
       <input type="checkbox" id="upload-pro" style="accent-color:var(--pro)">
       <label for="upload-pro" style="font-size:13px;color:var(--text2);cursor:pointer">Premium pack <span class="badge badge-pro">$SAMPLA required</span></label>
+    </div>
+    <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:4px;padding-top:12px;border-top:1px solid var(--border)">
+      <input type="checkbox" id="upload-rights-agree" style="margin-top:3px;accent-color:var(--accent);flex-shrink:0">
+      <label for="upload-rights-agree" style="font-size:12px;color:var(--text2);cursor:pointer;line-height:1.5">I confirm this is my own original work, or I hold full rights to upload and sell it. No undisclosed third party holds any claim to this content — if a third party is involved, they are aware of and consent to this listing.</label>
     </div>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="hideModal('upload-modal')">Cancel</button>
@@ -640,10 +645,24 @@
       <span class="badge badge-nft" style="margin-bottom:8px;display:inline-flex">NFT Exclusive licence</span><br>
       This beat will be listed as an exclusive licence. When sold, an NFT is minted to the buyer's Solana wallet — proving full ownership. The beat is then marked as sold and removed from the market.
     </div>
+    <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:4px;padding-top:12px;border-top:1px solid var(--border)">
+      <input type="checkbox" id="beat-rights-agree" style="margin-top:3px;accent-color:var(--accent);flex-shrink:0">
+      <label for="beat-rights-agree" style="font-size:12px;color:var(--text2);cursor:pointer;line-height:1.5">I confirm this is my own original work, or I hold full rights to upload and sell it. No undisclosed third party holds any claim to this content — if a third party is involved, they are aware of and consent to this listing.</label>
+    </div>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="hideModal('beat-modal')">Cancel</button>
       <button class="btn btn-accent" id="submit-beat-btn" onclick="submitBeat()">List beat</button>
     </div>
+  </div>
+</div>
+
+<!-- Upload progress overlay — shown while a sample/beat is actually uploading -->
+<div class="modal-overlay" id="upload-progress-modal" style="display:none;z-index:300">
+  <div class="modal" style="text-align:center;max-width:320px" onclick="event.stopPropagation()">
+    <div id="upload-progress-spinner" style="width:44px;height:44px;margin:8px auto 20px;border:3px solid var(--border2);border-top-color:var(--accent);border-radius:50%;animation:sampla-spin 0.8s linear infinite"></div>
+    <div id="upload-progress-icon" style="display:none;font-size:38px;margin:8px auto 16px;color:var(--accent)">✓</div>
+    <div id="upload-progress-text" style="font-size:15px;font-weight:700;margin-bottom:6px">Uploading…</div>
+    <div id="upload-progress-sub" style="font-size:12px;color:var(--text3)">This can take a moment for larger files</div>
   </div>
 </div>
 
@@ -1679,6 +1698,51 @@ async function uploadAudioFile(file, folder) {
   return data.publicUrl;
 }
 
+function showUploadProgress(text) {
+  document.getElementById('upload-progress-spinner').style.display = '';
+  document.getElementById('upload-progress-icon').style.display = 'none';
+  document.getElementById('upload-progress-text').textContent = text;
+  document.getElementById('upload-progress-sub').textContent = 'This can take a moment for larger files';
+  document.getElementById('upload-progress-modal').style.display = 'flex';
+}
+function updateUploadProgressText(text) {
+  document.getElementById('upload-progress-text').textContent = text;
+}
+// Swaps the spinner for a checkmark, shows a completion message, then
+// auto-closes shortly after — gives the user a clear "yes, this is done" moment.
+function completeUploadProgress(text) {
+  return new Promise(resolve => {
+    document.getElementById('upload-progress-spinner').style.display = 'none';
+    document.getElementById('upload-progress-icon').style.display = 'block';
+    document.getElementById('upload-progress-text').textContent = text;
+    document.getElementById('upload-progress-sub').textContent = '';
+    setTimeout(() => {
+      document.getElementById('upload-progress-modal').style.display = 'none';
+      resolve();
+    }, 1000);
+  });
+}
+function hideUploadProgress() {
+  document.getElementById('upload-progress-modal').style.display = 'none';
+}
+
+// Legal paper trail: records that the uploader explicitly confirmed rights
+// ownership at the moment of upload, tied to their wallet and the exact
+// content title. Best-effort — never blocks the upload itself if it fails.
+async function logContentAgreement(contentType, title) {
+  if (!currentUserId) return;
+  try {
+    const { error } = await supabaseClient.from('content_agreements').insert({
+      user_id: currentUserId,
+      wallet_address: walletAddress,
+      content_type: contentType,
+      content_title: title,
+      agreement_version: 'v1'
+    });
+    if (error) throw error;
+  } catch(e) { console.log('Agreement logging failed (non-blocking):', e.message); }
+}
+
 async function submitUpload() {
   const btn = document.getElementById('submit-upload-btn');
   if (btn.disabled) return; // already uploading — ignore extra clicks
@@ -1686,6 +1750,7 @@ async function submitUpload() {
   const name = document.getElementById('upload-name').value;
   if(!name){alert('Add a name');return;}
   if(!selectedSampleFile){alert('Please choose an audio file to upload');return;}
+  if(!document.getElementById('upload-rights-agree').checked){alert('Please confirm you hold the rights to this content before uploading.');return;}
   const newSample = {
     id: SAMPLES.length+1, name,
     artist: walletAddress ? walletAddress.slice(0,4)+'...'+walletAddress.slice(-4) : 'anonymous',
@@ -1698,20 +1763,24 @@ async function submitUpload() {
   };
   const originalText = btn.textContent;
   btn.disabled = true;
-  btn.textContent = 'Uploading…';
+  hideModal('upload-modal');
+  showUploadProgress('Uploading your track…');
   try {
     newSample.file_url = await uploadAudioFile(selectedSampleFile, 'samples');
-    btn.textContent = 'Saving…';
+    updateUploadProgressText('Saving details…');
     await saveSampleToDB(newSample);
+    await logContentAgreement('sample', name);
     SAMPLES.unshift(newSample);
     filteredSamples=[...SAMPLES];
     selectedSampleFile = null;
-    hideModal('upload-modal');
+    await completeUploadProgress('Upload complete ✓');
     renderSamples();
     updateStats();
     updateProfileTabVisibility();
     showToast(`"${name}" uploaded successfully ✓`);
   } catch(e) {
+    hideUploadProgress();
+    document.getElementById('upload-modal').style.display = 'flex';
     alert(`Upload failed: ${e.message}`);
   } finally {
     btn.disabled = false;
@@ -1728,6 +1797,7 @@ async function submitBeat() {
   if(!title){alert('Add a beat title');return;}
   if(!price||price<1){alert('Set a price in $SAMPLA');return;}
   if(!selectedBeatFile){alert('Please choose an audio file to upload');return;}
+  if(!document.getElementById('beat-rights-agree').checked){alert('Please confirm you hold the rights to this content before listing.');return;}
   const newBeat = {
     id: BEATS.length+1, title,
     artist: walletAddress ? walletAddress.slice(0,4)+'...'+walletAddress.slice(-4) : 'anonymous',
@@ -1739,21 +1809,25 @@ async function submitBeat() {
   };
   const originalText = btn.textContent;
   btn.disabled = true;
-  btn.textContent = 'Uploading…';
+  hideModal('beat-modal');
+  showUploadProgress('Uploading your beat…');
   try {
     newBeat.file_url = await uploadAudioFile(selectedBeatFile, 'beats');
-    btn.textContent = 'Saving…';
+    updateUploadProgressText('Saving details…');
     await saveBeatToDB(newBeat);
+    await logContentAgreement('beat', title);
     BEATS.unshift(newBeat);
     filteredBeats=[...BEATS];
     selectedBeatFile = null;
-    hideModal('beat-modal');
+    await completeUploadProgress('Listed successfully ✓');
     renderBeats();
     updateStats();
     updateProfileTabVisibility();
     const fee=Math.round(price*FEE);
     showToast(`"${title}" listed — you receive ${(price-fee).toLocaleString()} $SAMPLA after fees ✓`);
   } catch(e) {
+    hideUploadProgress();
+    document.getElementById('beat-modal').style.display = 'flex';
     alert(`Listing failed: ${e.message}`);
   } finally {
     btn.disabled = false;
