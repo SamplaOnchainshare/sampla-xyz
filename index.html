@@ -790,6 +790,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://unpkg.com/@solana/web3.js@1/lib/index.iife.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js"></script>
 <script>
 const FEE = 0.033;
 const COLORS = ['#1a1a2e','#16213e','#0f3460','#1a1a2e','#2d1b4e','#1e3a2f'];
@@ -1123,18 +1124,23 @@ audioEl.addEventListener('ended', () => {
   renderSamples();
 });
 
-function playTrack(track) {
+async function playTrack(track) {
   if (!track.file_url) {
     alert('This track doesn\'t have an audio file uploaded yet.');
     return;
   }
   currentSample = track;
-  audioEl.src = track.file_url;
-  audioEl.play().catch(e => alert('Playback failed: ' + e.message));
-  isPlaying = true;
   document.getElementById('player-name').textContent = track.name;
   document.getElementById('player-artist').textContent = track.artist || '';
   document.getElementById('player-bar').classList.add('visible');
+  try {
+    audioEl.src = await resolvePlayableUrl(track.file_url, 60);
+    await audioEl.play();
+    isPlaying = true;
+  } catch(e) {
+    isPlaying = false;
+    alert('Playback failed: ' + e.message);
+  }
   updatePlayerBtn();
 }
 
@@ -1146,7 +1152,7 @@ function playBeat(id) {
     id: 'beat-'+b.id,
     name: b.title+' — preview',
     artist: b.artist+' · '+b.bpm+' BPM · '+b.key,
-    file_url: b.file_url,
+    file_url: b.preview_url || b.file_url,
     isBeat: true,
     beatId: b.id
   });
@@ -1161,15 +1167,33 @@ function playSample(id) {
     id: s.id,
     name: s.name,
     artist: s.artist+(s.bpm>0?' · '+s.bpm+' BPM':'')+(s.key!=='—'?' · '+s.key:''),
-    file_url: s.file_url
+    file_url: s.preview_url || s.file_url
   });
   renderSamples();
 }
 
-function togglePlay() {
+async function togglePlay() {
   if (!currentSample || !audioEl.src) return;
-  if (audioEl.paused) { audioEl.play(); isPlaying = true; }
-  else { audioEl.pause(); isPlaying = false; }
+  if (audioEl.paused) {
+    try {
+      await audioEl.play();
+      isPlaying = true;
+    } catch(e) {
+      // Signed URL likely expired while paused — get a fresh one and resume from the same spot
+      try {
+        const resumeAt = audioEl.currentTime;
+        audioEl.src = await resolvePlayableUrl(currentSample.file_url, 60);
+        audioEl.currentTime = resumeAt;
+        await audioEl.play();
+        isPlaying = true;
+      } catch(e2) {
+        alert('Playback failed: ' + e2.message);
+      }
+    }
+  } else {
+    audioEl.pause();
+    isPlaying = false;
+  }
   updatePlayerBtn(); renderSamples();
 }
 
@@ -1178,12 +1202,17 @@ function updatePlayerBtn() {
   icon.innerHTML = isPlaying ? '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>' : '<polygon points="5 3 19 12 5 21 5 3"/>';
 }
 
-function downloadSample(id) {
+async function downloadSample(id) {
   const s = SAMPLES.find(s=>s.id===id);
   if (!s) return;
   if (!s.file_url) { alert('No audio file available for this sample yet.'); return; }
-  window.open(s.file_url, '_blank');
-  logSampleDownload(s);
+  try {
+    const url = await resolvePlayableUrl(s.file_url, 300);
+    window.open(url, '_blank');
+    logSampleDownload(s);
+  } catch(e) {
+    alert('Download failed: ' + e.message);
+  }
 }
 
 // Best-effort activity log — a failed insert here should never stop the
@@ -1266,7 +1295,7 @@ function canDownloadBeat(b) {
   return walletAddress === b.sellerWallet || walletAddress === b.buyerWallet;
 }
 
-function downloadCurrent() {
+async function downloadCurrent() {
   if (!currentSample) return;
   if (!currentSample.file_url) { alert('No audio file available to download.'); return; }
   if (currentSample.isBeat) {
@@ -1278,7 +1307,12 @@ function downloadCurrent() {
       return;
     }
   }
-  window.open(currentSample.file_url, '_blank');
+  try {
+    const url = await resolvePlayableUrl(currentSample.file_url, 300);
+    window.open(url, '_blank');
+  } catch(e) {
+    alert('Download failed: ' + e.message);
+  }
 }
 
 // ---- FILTERS ----
@@ -1690,6 +1724,85 @@ function handleFile(input,targetId) {
 
 // Upload an audio file to Supabase Storage and return its public URL.
 // Requires a public "audio" bucket to exist in the Supabase project.
+// ---- PREVIEW PROTECTION: watermark + downgrade the file everyone streams ----
+// Buyers get the untouched original (uploadAudioFile / file_url) only after
+// purchase or direct download. Everyone else — including the artist's own
+// "Play" button on the marketplace — hears this lower-quality, watermarked
+// version instead, generated entirely in the browser at upload time.
+async function buildWatermarkedPreview(file) {
+  const arrayBuffer = await file.arrayBuffer();
+  const AudioCtx = window.AudioContext || window.webkitAudioContext;
+  const ctx = new AudioCtx();
+  let audioBuffer;
+  try {
+    audioBuffer = await ctx.decodeAudioData(arrayBuffer);
+  } finally {
+    ctx.close();
+  }
+
+  const sampleRate = audioBuffer.sampleRate;
+  const numChannels = Math.min(audioBuffer.numberOfChannels, 2); // encode at most stereo
+  const length = audioBuffer.length;
+
+  const channelData = [];
+  for (let ch = 0; ch < numChannels; ch++) {
+    channelData.push(Float32Array.from(audioBuffer.getChannelData(ch)));
+  }
+
+  // Short, bright two-note "ping" — synthesized, not a recording, so it
+  // never depends on an external audio asset being available.
+  const wmDuration = 1.1;
+  const wmSamples = Math.floor(wmDuration * sampleRate);
+  const watermark = new Float32Array(wmSamples);
+  const notes = [1046.5, 1568.0]; // C6, G6
+  const segLen = Math.floor(wmSamples / notes.length);
+  for (let i = 0; i < wmSamples; i++) {
+    const segIdx = Math.min(Math.floor(i / segLen), notes.length - 1);
+    const localT = (i - segIdx * segLen) / sampleRate;
+    const envelope = Math.exp(-localT * 7);
+    watermark[i] = Math.sin(2 * Math.PI * notes[segIdx] * localT) * envelope;
+  }
+
+  // Mix the watermark in on a fixed interval throughout the whole track —
+  // baked into the waveform itself, so it survives any re-recording/ripping.
+  const intervalSamples = Math.floor(9 * sampleRate);
+  const mixGain = 0.35;
+  for (let ch = 0; ch < numChannels; ch++) {
+    const data = channelData[ch];
+    for (let start = intervalSamples; start < length; start += intervalSamples) {
+      const end = Math.min(wmSamples, length - start);
+      for (let i = 0; i < end; i++) {
+        data[start + i] = Math.max(-1, Math.min(1, data[start + i] + watermark[i] * mixGain));
+      }
+    }
+  }
+
+  function floatTo16(data) {
+    const out = new Int16Array(data.length);
+    for (let i = 0; i < data.length; i++) {
+      const s = Math.max(-1, Math.min(1, data[i]));
+      out[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+    }
+    return out;
+  }
+  const pcm = channelData.map(floatTo16);
+
+  // Re-encode at 128kbps — a clear step down from the original, on top of the watermark.
+  const encoder = new lamejs.Mp3Encoder(numChannels, sampleRate, 128);
+  const blockSize = 1152;
+  const chunks = [];
+  for (let i = 0; i < length; i += blockSize) {
+    const buf = numChannels === 2
+      ? encoder.encodeBuffer(pcm[0].subarray(i, i + blockSize), pcm[1].subarray(i, i + blockSize))
+      : encoder.encodeBuffer(pcm[0].subarray(i, i + blockSize));
+    if (buf.length > 0) chunks.push(buf);
+  }
+  const tail = encoder.flush();
+  if (tail.length > 0) chunks.push(tail);
+
+  return new Blob(chunks, { type: 'audio/mp3' });
+}
+
 async function uploadAudioFile(file, folder) {
   if (!file) return '';
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
@@ -1699,8 +1812,24 @@ async function uploadAudioFile(file, folder) {
     upsert: false
   });
   if (error) throw new Error('Audio upload failed: ' + error.message);
-  const { data } = supabaseClient.storage.from('audio').getPublicUrl(path);
-  return data.publicUrl;
+  // We store the storage PATH, not a permanent public link — the file is
+  // resolved to a short-lived signed URL at the moment it's actually
+  // played or downloaded (see resolvePlayableUrl), so a copied link can't
+  // be reused or shared indefinitely.
+  return path;
+}
+
+// Turns a stored path (or a legacy full public URL from before this change)
+// into a fresh, short-lived signed URL. Anyone grabbing this link from
+// devtools still only gets it for `expiresIn` seconds — it can't be saved
+// and reused later, unlike the old permanent public URLs.
+async function resolvePlayableUrl(rawValue, expiresIn = 60) {
+  if (!rawValue) return '';
+  const marker = '/storage/v1/object/public/audio/';
+  const path = rawValue.includes(marker) ? rawValue.split(marker)[1] : rawValue;
+  const { data, error } = await supabaseClient.storage.from('audio').createSignedUrl(path, expiresIn);
+  if (error) throw error;
+  return data.signedUrl;
 }
 
 function showUploadProgress(text) {
@@ -1764,14 +1893,26 @@ async function submitUpload() {
     dur:'0:04',
     tags: document.getElementById('upload-tags').value.split(',').map(t=>t.trim()).filter(Boolean),
     pro: document.getElementById('upload-pro').checked,
-    genre:'trap', file_url:''
+    genre:'trap', file_url:'', preview_url:''
   };
   const originalText = btn.textContent;
   btn.disabled = true;
   hideModal('upload-modal');
-  showUploadProgress('Uploading your track…');
+  showUploadProgress('Processing preview…');
   try {
+    let previewBlob = null;
+    try {
+      previewBlob = await buildWatermarkedPreview(selectedSampleFile);
+    } catch(pe) {
+      console.log('Preview generation failed, uploading without one:', pe.message);
+    }
+    updateUploadProgressText('Uploading original…');
     newSample.file_url = await uploadAudioFile(selectedSampleFile, 'samples');
+    if (previewBlob) {
+      updateUploadProgressText('Uploading preview…');
+      const previewFile = new File([previewBlob], 'preview.mp3', { type: 'audio/mp3' });
+      newSample.preview_url = await uploadAudioFile(previewFile, 'samples-preview');
+    }
     updateUploadProgressText('Saving details…');
     await saveSampleToDB(newSample);
     await logContentAgreement('sample', name);
@@ -1810,14 +1951,26 @@ async function submitBeat() {
     key: document.getElementById('beat-key').value||'—',
     genre: document.getElementById('beat-genre').value,
     price, tags: document.getElementById('beat-tags').value.split(',').map(t=>t.trim()).filter(Boolean),
-    sold:false, sellerWallet: walletAddress, emoji:'🎵', color:'#1a1a2e', file_url:''
+    sold:false, sellerWallet: walletAddress, emoji:'🎵', color:'#1a1a2e', file_url:'', preview_url:''
   };
   const originalText = btn.textContent;
   btn.disabled = true;
   hideModal('beat-modal');
-  showUploadProgress('Uploading your beat…');
+  showUploadProgress('Processing preview…');
   try {
+    let previewBlob = null;
+    try {
+      previewBlob = await buildWatermarkedPreview(selectedBeatFile);
+    } catch(pe) {
+      console.log('Preview generation failed, uploading without one:', pe.message);
+    }
+    updateUploadProgressText('Uploading original…');
     newBeat.file_url = await uploadAudioFile(selectedBeatFile, 'beats');
+    if (previewBlob) {
+      updateUploadProgressText('Uploading preview…');
+      const previewFile = new File([previewBlob], 'preview.mp3', { type: 'audio/mp3' });
+      newBeat.preview_url = await uploadAudioFile(previewFile, 'beats-preview');
+    }
     updateUploadProgressText('Saving details…');
     await saveBeatToDB(newBeat);
     await logContentAgreement('beat', title);
@@ -2359,7 +2512,7 @@ async function loadSamplesFromDB() {
         bpm: s.bpm || 0, key: s.key || '—', dur: '—',
         tags: s.tags ? s.tags.split(',').map(t => t.trim()) : [],
         pro: s.is_premium || false, genre: s.genre || 'trap',
-        file_url: s.file_url
+        file_url: s.file_url, preview_url: s.preview_url || null
       }));
       SAMPLES.length = 0;
       dbSamples.forEach(s => SAMPLES.push(s));
@@ -2384,7 +2537,7 @@ async function loadBeatsFromDB() {
         buyerWallet: b.buyer_wallet || null,
         soldTo: b.buyer_wallet ? shortAddr(b.buyer_wallet) : null,
         sellerWallet: b.seller_wallet || null,
-        emoji: '🎵', color: '#1a1a2e', file_url: b.file_url
+        emoji: '🎵', color: '#1a1a2e', file_url: b.file_url, preview_url: b.preview_url || null
       }));
       BEATS.length = 0;
       dbBeats.forEach(b => BEATS.push(b));
@@ -2413,6 +2566,7 @@ async function saveSampleToDB(sample) {
     genre: sample.genre,
     tags: sample.tags.join(','),
     file_url: sample.file_url || '',
+    preview_url: sample.preview_url || null,
     is_premium: sample.pro,
     wallet_address: walletAddress || ''
   });
@@ -2429,6 +2583,7 @@ async function saveBeatToDB(beat) {
     genre: beat.genre,
     tags: beat.tags.join(','),
     file_url: beat.file_url || '',
+    preview_url: beat.preview_url || null,
     price: beat.price,
     is_sold: false,
     seller_wallet: walletAddress || ''
