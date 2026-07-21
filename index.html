@@ -969,6 +969,7 @@ function renderBeats() {
     } else {
       myGrid.innerHTML = mine.map(b => `
         <div class="my-sample-row" id="my-beat-${b.id}">
+          ${b.cover_url ? `<img src="${b.cover_url}" style="width:40px;height:40px;object-fit:cover;border-radius:6px;flex-shrink:0" alt="">` : ''}
           <button class="play-btn" onclick="playBeat(${b.id})">
             <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
           </button>
@@ -992,7 +993,7 @@ function renderBeats() {
   if (pGrid) {
     pGrid.innerHTML = purchasedBeats.length ? purchasedBeats.map(b=>`
       <div style="background:var(--bg2);border:1px solid rgba(138,43,226,0.2);border-radius:8px;padding:14px 16px;display:flex;align-items:center;gap:14px">
-        <div style="font-size:26px">${b.emoji}</div>
+        ${b.cover_url ? `<img src="${b.cover_url}" style="width:36px;height:36px;object-fit:cover;border-radius:6px;flex-shrink:0" alt="">` : `<div style="font-size:26px">${b.emoji}</div>`}
         <div style="flex:1"><div style="font-size:14px;font-weight:600">${b.title}</div><div style="font-size:12px;color:var(--text2)">${displayArtistName(b.artist)} · ${b.bpm} BPM · ${b.key}</div></div>
         <span class="badge badge-nft">NFT owned</span>
       </div>`).join('')
@@ -1921,7 +1922,8 @@ async function buildWatermarkedPreview(file) {
 
   // Mix the watermark in on a fixed interval throughout the whole track —
   // baked into the waveform itself, so it survives any re-recording/ripping.
-  const intervalSamples = Math.floor(9 * sampleRate);
+  // Every 25s keeps it a deterrent without making the preview unlistenable.
+  const intervalSamples = Math.floor(25 * sampleRate);
   const mixGain = 0.35;
   for (let ch = 0; ch < numChannels; ch++) {
     const data = channelData[ch];
