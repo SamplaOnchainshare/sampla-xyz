@@ -633,6 +633,13 @@
       <label class="form-label">Beat title</label>
       <input class="form-input" id="beat-name" placeholder="e.g. Midnight Cipher">
     </div>
+    <div class="form-group">
+      <label class="form-label">Listing type</label>
+      <div style="display:flex;gap:8px">
+        <button type="button" class="filter-btn active" id="beat-type-sale-btn" onclick="setBeatListingType('sale')">For sale</button>
+        <button type="button" class="filter-btn" id="beat-type-free-btn" onclick="setBeatListingType('free')">Free</button>
+      </div>
+    </div>
     <div class="form-row">
       <div class="form-group"><label class="form-label">BPM</label><input class="form-input" id="beat-bpm" placeholder="140" type="number"></div>
       <div class="form-group"><label class="form-label">Key</label><input class="form-input" id="beat-key" placeholder="Fm"></div>
@@ -645,7 +652,7 @@
           <option value="rnb">R&B</option><option value="ambient">Ambient</option><option value="house">House</option>
         </select>
       </div>
-      <div class="form-group">
+      <div class="form-group" id="beat-price-group">
         <label class="form-label">Price ($SAMPLA)</label>
         <input class="form-input" id="beat-price" placeholder="500" type="number">
       </div>
@@ -661,9 +668,13 @@
       <label class="form-label">Tags</label>
       <input class="form-input" id="beat-tags" placeholder="dark, melodic, sample-ready">
     </div>
-    <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:16px;font-size:12px;color:var(--text2);line-height:1.6">
+    <div id="beat-nft-note" style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:16px;font-size:12px;color:var(--text2);line-height:1.6">
       <span class="badge badge-nft" style="margin-bottom:8px;display:inline-flex">NFT Exclusive licence</span><br>
       This beat will be listed as an exclusive licence. When sold, an NFT is minted to the buyer's Solana wallet — proving full ownership. The beat is then marked as sold and removed from the market.
+    </div>
+    <div id="beat-free-note" style="display:none;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:16px;font-size:12px;color:var(--text2);line-height:1.6">
+      <span class="badge badge-nft" style="margin-bottom:8px;display:inline-flex;background:var(--accent2);color:var(--accent)">Free download</span><br>
+      This beat will be listed for free. No NFT, no exclusivity — anyone can download it, and it stays on the market for everyone.
     </div>
     <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:4px;padding-top:12px;border-top:1px solid var(--border)">
       <input type="checkbox" id="beat-rights-agree" style="margin-top:3px;accent-color:var(--accent);flex-shrink:0">
@@ -1003,17 +1014,31 @@ function beatCardHTML(b) {
         ${b.bpm?`<span class="tag">${b.bpm} BPM</span>`:''}
         <span class="tag">${b.key}</span>
         <span class="tag">${b.genre}</span>
-        ${b.sold?`<span class="badge badge-sold">Sold</span>`:`<span class="badge badge-nft">Exclusive</span>`}
+        ${b.isFree?`<span class="badge badge-nft" style="background:var(--accent2);color:var(--accent)">Free</span>`:(b.sold?`<span class="badge badge-sold">Sold</span>`:`<span class="badge badge-nft">Exclusive</span>`)}
       </div>
       <div class="beat-footer">
-        <div><div class="beat-price">${b.price.toLocaleString()} <span style="font-size:12px;font-weight:500;color:var(--text2)">$SAMPLA</span></div></div>
-        ${isPurchased?`<span class="badge badge-nft">You own this</span>`
+        <div><div class="beat-price">${b.isFree?'Free':b.price.toLocaleString()+' <span style="font-size:12px;font-weight:500;color:var(--text2)">$SAMPLA</span>'}</div></div>
+        ${b.isFree?`<button class="btn-buy" onclick="downloadFreeBeat(${b.id})">Download ↓</button>`
+          :isPurchased?`<span class="badge badge-nft">You own this</span>`
           :b.sold?`<button class="btn-sold">Sold out</button>`
           :`<button class="btn-buy" onclick="openBuyModal(${b.id})">Buy beat →</button>`}
       </div>
-      <div class="beat-fee-note">Platform fee 3.3% · Creator gets ${Math.round(b.price*(1-FEE)).toLocaleString()} $SAMPLA</div>
+      ${b.isFree?'':`<div class="beat-fee-note">Platform fee 3.3% · Creator gets ${Math.round(b.price*(1-FEE)).toLocaleString()} $SAMPLA</div>`}
     </div>
   </div>`;
+}
+
+// Free beats skip the whole purchase/NFT flow entirely — straight to a real download.
+async function downloadFreeBeat(id) {
+  const b = BEATS.find(x => x.id === id);
+  if (!b) return;
+  if (!b.file_url) { alert('No audio file available to download.'); return; }
+  try {
+    const url = await resolvePlayableUrl(b.file_url, 300);
+    window.open(url, '_blank');
+  } catch(e) {
+    alert('Download failed: ' + e.message);
+  }
 }
 
 // ---- BUY FLOW ----
@@ -1719,11 +1744,25 @@ function showUpload() {
   selectedSampleFile = null;
   document.getElementById('upload-modal').style.display='flex';
 }
+let beatListingIsFree = false;
+
+function setBeatListingType(type) {
+  beatListingIsFree = type === 'free';
+  document.getElementById('beat-type-sale-btn').classList.toggle('active', !beatListingIsFree);
+  document.getElementById('beat-type-free-btn').classList.toggle('active', beatListingIsFree);
+  document.getElementById('beat-price-group').style.display = beatListingIsFree ? 'none' : '';
+  document.getElementById('beat-nft-note').style.display = beatListingIsFree ? 'none' : '';
+  document.getElementById('beat-free-note').style.display = beatListingIsFree ? '' : 'none';
+  const feePreview = document.getElementById('beat-fee-preview');
+  if (beatListingIsFree) feePreview.style.display = 'none';
+}
+
 function showBeatUpload() {
   if(!walletConnected){connectWallet();return;}
   resetDropzoneVisual('beat', '🎹', 'Drop your beat file here', 'WAV, MP3 — buyers get the full file after purchase');
   selectedBeatFile = null;
   resetCoverDropzone();
+  setBeatListingType('sale');
   document.getElementById('beat-modal').style.display='flex';
 }
 function hideModal(id,event) {
@@ -2056,9 +2095,9 @@ async function submitBeat() {
   if (btn.disabled) return; // already uploading — ignore extra clicks
 
   const title = document.getElementById('beat-name').value;
-  const price = parseInt(document.getElementById('beat-price').value);
+  const price = beatListingIsFree ? 0 : parseInt(document.getElementById('beat-price').value);
   if(!title){alert('Add a beat title');return;}
-  if(!price||price<1){alert('Set a price in $SAMPLA');return;}
+  if(!beatListingIsFree && (!price||price<1)){alert('Set a price in $SAMPLA');return;}
   if(!selectedBeatFile){alert('Please choose an audio file to upload');return;}
   if(!document.getElementById('beat-rights-agree').checked){alert('Please confirm you hold the rights to this content before listing.');return;}
   const newBeat = {
@@ -2068,7 +2107,7 @@ async function submitBeat() {
     key: document.getElementById('beat-key').value||'—',
     genre: document.getElementById('beat-genre').value,
     price, tags: document.getElementById('beat-tags').value.split(',').map(t=>t.trim()).filter(Boolean),
-    sold:false, sellerWallet: walletAddress, emoji:'🎵', color:'#1a1a2e', file_url:'', preview_url:'', cover_url:''
+    sold:false, isFree: beatListingIsFree, sellerWallet: walletAddress, emoji:'🎵', color:'#1a1a2e', file_url:'', preview_url:'', cover_url:''
   };
   const originalText = btn.textContent;
   btn.disabled = true;
@@ -2104,7 +2143,9 @@ async function submitBeat() {
     updateStats();
     updateProfileTabVisibility();
     const fee=Math.round(price*FEE);
-    showToast(`"${title}" listed — you receive ${(price-fee).toLocaleString()} $SAMPLA after fees ✓`);
+    showToast(beatListingIsFree
+      ? `"${title}" listed as a free download ✓`
+      : `"${title}" listed — you receive ${(price-fee).toLocaleString()} $SAMPLA after fees ✓`);
   } catch(e) {
     hideUploadProgress();
     document.getElementById('beat-modal').style.display = 'flex';
@@ -2659,7 +2700,7 @@ async function loadBeatsFromDB() {
         buyerWallet: b.buyer_wallet || null,
         soldTo: b.buyer_wallet ? shortAddr(b.buyer_wallet) : null,
         sellerWallet: b.seller_wallet || null,
-        emoji: '🎵', color: '#1a1a2e', file_url: b.file_url, preview_url: b.preview_url || null, cover_url: b.cover_url || null
+        emoji: '🎵', color: '#1a1a2e', file_url: b.file_url, preview_url: b.preview_url || null, cover_url: b.cover_url || null, isFree: b.is_free || false
       }));
       BEATS.length = 0;
       dbBeats.forEach(b => BEATS.push(b));
@@ -2708,6 +2749,7 @@ async function saveBeatToDB(beat) {
     preview_url: beat.preview_url || null,
     cover_url: beat.cover_url || null,
     price: beat.price,
+    is_free: !!beat.isFree,
     is_sold: false,
     seller_wallet: walletAddress || ''
   });
