@@ -45,6 +45,7 @@
   .sidebar-count { margin-left: auto; font-size: 11px; color: var(--text3); }
 
   .btn { padding: 7px 14px; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer; border: none; transition: all 0.12s; font-family: var(--font); }
+  .btn:disabled { opacity: 0.55; cursor: not-allowed; }
   .btn-accent { background: var(--accent); color: #000; }
   .btn-accent:hover { background: #d4ff1a; }
   .btn-ghost { background: transparent; color: var(--text2); border: 1px solid var(--border2); }
@@ -588,7 +589,7 @@
     </div>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="hideModal('upload-modal')">Cancel</button>
-      <button class="btn btn-accent" onclick="submitUpload()">Upload sample</button>
+      <button class="btn btn-accent" id="submit-upload-btn" onclick="submitUpload()">Upload sample</button>
     </div>
   </div>
 </div>
@@ -641,7 +642,7 @@
     </div>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="hideModal('beat-modal')">Cancel</button>
-      <button class="btn btn-accent" onclick="submitBeat()">List beat</button>
+      <button class="btn btn-accent" id="submit-beat-btn" onclick="submitBeat()">List beat</button>
     </div>
   </div>
 </div>
@@ -1679,6 +1680,9 @@ async function uploadAudioFile(file, folder) {
 }
 
 async function submitUpload() {
+  const btn = document.getElementById('submit-upload-btn');
+  if (btn.disabled) return; // already uploading — ignore extra clicks
+
   const name = document.getElementById('upload-name').value;
   if(!name){alert('Add a name');return;}
   if(!selectedSampleFile){alert('Please choose an audio file to upload');return;}
@@ -1692,8 +1696,12 @@ async function submitUpload() {
     pro: document.getElementById('upload-pro').checked,
     genre:'trap', file_url:''
   };
+  const originalText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Uploading…';
   try {
     newSample.file_url = await uploadAudioFile(selectedSampleFile, 'samples');
+    btn.textContent = 'Saving…';
     await saveSampleToDB(newSample);
     SAMPLES.unshift(newSample);
     filteredSamples=[...SAMPLES];
@@ -1705,10 +1713,16 @@ async function submitUpload() {
     showToast(`"${name}" uploaded successfully ✓`);
   } catch(e) {
     alert(`Upload failed: ${e.message}`);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalText;
   }
 }
 
 async function submitBeat() {
+  const btn = document.getElementById('submit-beat-btn');
+  if (btn.disabled) return; // already uploading — ignore extra clicks
+
   const title = document.getElementById('beat-name').value;
   const price = parseInt(document.getElementById('beat-price').value);
   if(!title){alert('Add a beat title');return;}
@@ -1723,8 +1737,12 @@ async function submitBeat() {
     price, tags: document.getElementById('beat-tags').value.split(',').map(t=>t.trim()).filter(Boolean),
     sold:false, sellerWallet: walletAddress, emoji:'🎵', color:'#1a1a2e', file_url:''
   };
+  const originalText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Uploading…';
   try {
     newBeat.file_url = await uploadAudioFile(selectedBeatFile, 'beats');
+    btn.textContent = 'Saving…';
     await saveBeatToDB(newBeat);
     BEATS.unshift(newBeat);
     filteredBeats=[...BEATS];
@@ -1737,6 +1755,9 @@ async function submitBeat() {
     showToast(`"${title}" listed — you receive ${(price-fee).toLocaleString()} $SAMPLA after fees ✓`);
   } catch(e) {
     alert(`Listing failed: ${e.message}`);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalText;
   }
 }
 
