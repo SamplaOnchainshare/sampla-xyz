@@ -151,7 +151,7 @@
   .form-input:focus { border-color: var(--accent); }
   .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   .dropzone { border: 1px dashed var(--border2); border-radius: 8px; padding: 28px; text-align: center; cursor: pointer; transition: all 0.12s; margin-bottom: 16px; }
-  .dropzone:hover { border-color: var(--accent); background: var(--accent2); }
+  .dropzone:hover, .dropzone.dragover { border-color: var(--accent); background: var(--accent2); }
   .dropzone-icon { font-size: 26px; margin-bottom: 8px; }
   .dropzone-text { font-size: 13px; color: var(--text2); }
   .dropzone-sub { font-size: 11px; color: var(--text3); margin-top: 4px; }
@@ -570,7 +570,10 @@
 <div class="modal-overlay" id="upload-modal" style="display:none" onclick="hideModal('upload-modal',event)">
   <div class="modal" onclick="event.stopPropagation()">
     <div class="modal-title">Upload sample pack</div>
-    <div class="dropzone" onclick="document.getElementById('file-input').click()">
+    <div class="dropzone" id="sample-dropzone" onclick="document.getElementById('file-input').click()"
+      ondragover="event.preventDefault(); this.classList.add('dragover')"
+      ondragleave="this.classList.remove('dragover')"
+      ondrop="handleDroppedFile(event, this, 'upload-name')">
       <div class="dropzone-icon">🎵</div>
       <div class="dropzone-text">Drop your audio file here</div>
       <div class="dropzone-sub">WAV, MP3, FLAC — max 50MB</div>
@@ -607,7 +610,10 @@
 <div class="modal-overlay" id="beat-modal" style="display:none" onclick="hideModal('beat-modal',event)">
   <div class="modal" onclick="event.stopPropagation()">
     <div class="modal-title">List your beat</div>
-    <div class="dropzone" onclick="document.getElementById('beat-file-input').click()">
+    <div class="dropzone" id="beat-dropzone" onclick="document.getElementById('beat-file-input').click()"
+      ondragover="event.preventDefault(); this.classList.add('dragover')"
+      ondragleave="this.classList.remove('dragover')"
+      ondrop="handleDroppedFile(event, this, 'beat-name')">
       <div class="dropzone-icon">🎹</div>
       <div class="dropzone-text">Drop your beat file here</div>
       <div class="dropzone-sub">WAV, MP3 — buyers get the full file after purchase</div>
@@ -1712,14 +1718,31 @@ function hideModal(id,event) {
 let selectedSampleFile = null;
 let selectedBeatFile = null;
 
+function applySelectedFile(file, targetId) {
+  if (!file) return;
+  if (!file.type.startsWith('audio/')) {
+    alert('Please choose an audio file (WAV, MP3, FLAC).');
+    return;
+  }
+  const name = file.name.replace(/\.[^.]+$/,'').replace(/_/g,' ');
+  document.getElementById(targetId).value = name;
+  if (targetId === 'upload-name') selectedSampleFile = file;
+  if (targetId === 'beat-name') selectedBeatFile = file;
+}
+
 function handleFile(input,targetId) {
   if(input.files[0]){
-    const file = input.files[0];
-    const name = file.name.replace(/\.[^.]+$/,'').replace(/_/g,' ');
-    document.getElementById(targetId).value = name;
-    if (targetId === 'upload-name') selectedSampleFile = file;
-    if (targetId === 'beat-name') selectedBeatFile = file;
+    applySelectedFile(input.files[0], targetId);
   }
+}
+
+// Actually intercepts a dragged-and-dropped file instead of letting the
+// browser fall back to its default behavior of opening/playing it directly.
+function handleDroppedFile(event, zoneEl, targetId) {
+  event.preventDefault();
+  zoneEl.classList.remove('dragover');
+  const file = event.dataTransfer?.files?.[0];
+  if (file) applySelectedFile(file, targetId);
 }
 
 // Upload an audio file to Supabase Storage and return its public URL.
