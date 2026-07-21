@@ -574,9 +574,9 @@
       ondragover="event.preventDefault(); this.classList.add('dragover')"
       ondragleave="this.classList.remove('dragover')"
       ondrop="handleDroppedFile(event, this, 'upload-name')">
-      <div class="dropzone-icon">🎵</div>
-      <div class="dropzone-text">Drop your audio file here</div>
-      <div class="dropzone-sub">WAV, MP3, FLAC — max 50MB</div>
+      <div class="dropzone-icon" id="sample-dropzone-icon">🎵</div>
+      <div class="dropzone-text" id="sample-dropzone-text">Drop your audio file here</div>
+      <div class="dropzone-sub" id="sample-dropzone-sub">WAV, MP3, FLAC — max 50MB</div>
       <input type="file" id="file-input" accept="audio/*" style="display:none" onchange="handleFile(this,'upload-name')">
     </div>
     <div class="form-group">
@@ -610,13 +610,23 @@
 <div class="modal-overlay" id="beat-modal" style="display:none" onclick="hideModal('beat-modal',event)">
   <div class="modal" onclick="event.stopPropagation()">
     <div class="modal-title">List your beat</div>
+    <div class="dropzone" id="beat-cover-dropzone" onclick="document.getElementById('beat-cover-input').click()"
+      ondragover="event.preventDefault(); this.classList.add('dragover')"
+      ondragleave="this.classList.remove('dragover')"
+      ondrop="handleDroppedCoverFile(event, this)" style="padding:16px">
+      <img id="beat-cover-preview-img" style="display:none;width:56px;height:56px;object-fit:cover;border-radius:8px;margin:0 auto 8px;">
+      <div class="dropzone-icon" id="beat-cover-dropzone-icon" style="font-size:20px;margin-bottom:6px">🖼️</div>
+      <div class="dropzone-text" id="beat-cover-dropzone-text" style="font-size:12px">Drop cover art here (optional)</div>
+      <div class="dropzone-sub" id="beat-cover-dropzone-sub">JPG, PNG — square works best, max 5MB</div>
+      <input type="file" id="beat-cover-input" accept="image/*" style="display:none" onchange="handleCoverFile(this)">
+    </div>
     <div class="dropzone" id="beat-dropzone" onclick="document.getElementById('beat-file-input').click()"
       ondragover="event.preventDefault(); this.classList.add('dragover')"
       ondragleave="this.classList.remove('dragover')"
       ondrop="handleDroppedFile(event, this, 'beat-name')">
-      <div class="dropzone-icon">🎹</div>
-      <div class="dropzone-text">Drop your beat file here</div>
-      <div class="dropzone-sub">WAV, MP3 — buyers get the full file after purchase</div>
+      <div class="dropzone-icon" id="beat-dropzone-icon">🎹</div>
+      <div class="dropzone-text" id="beat-dropzone-text">Drop your beat file here</div>
+      <div class="dropzone-sub" id="beat-dropzone-sub">WAV, MP3 — buyers get the full file after purchase</div>
       <input type="file" id="beat-file-input" accept="audio/*" style="display:none" onchange="handleFile(this,'beat-name')">
     </div>
     <div class="form-group">
@@ -983,7 +993,7 @@ function beatCardHTML(b) {
   const isPurchased = purchasedBeats.some(p=>p.id===b.id);
   return `<div class="beat-card ${b.sold?'sold':''}">
     <div class="beat-cover" style="background:${b.color}">
-      <span style="position:relative;z-index:1;font-size:36px">${b.emoji}</span>
+      ${b.cover_url ? `<img src="${b.cover_url}" class="beat-cover-bg" style="width:100%;height:100%;object-fit:cover" alt="">` : `<span style="position:relative;z-index:1;font-size:36px">${b.emoji}</span>`}
       ${!b.sold?`<div class="beat-play-overlay" onclick="playBeat(${b.id})"><div class="beat-play-circle"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg></div></div>`:''}
     </div>
     <div class="beat-body">
@@ -1705,10 +1715,15 @@ function switchProfileTab(tab, el) {
 // ---- MODALS ----
 function showUpload() {
   if(!walletConnected){connectWallet();return;}
+  resetDropzoneVisual('sample', '🎵', 'Drop your audio file here', 'WAV, MP3, FLAC — max 50MB');
+  selectedSampleFile = null;
   document.getElementById('upload-modal').style.display='flex';
 }
 function showBeatUpload() {
   if(!walletConnected){connectWallet();return;}
+  resetDropzoneVisual('beat', '🎹', 'Drop your beat file here', 'WAV, MP3 — buyers get the full file after purchase');
+  selectedBeatFile = null;
+  resetCoverDropzone();
   document.getElementById('beat-modal').style.display='flex';
 }
 function hideModal(id,event) {
@@ -1717,6 +1732,7 @@ function hideModal(id,event) {
 }
 let selectedSampleFile = null;
 let selectedBeatFile = null;
+let selectedBeatCoverFile = null;
 
 function applySelectedFile(file, targetId) {
   if (!file) return;
@@ -1728,6 +1744,20 @@ function applySelectedFile(file, targetId) {
   document.getElementById(targetId).value = name;
   if (targetId === 'upload-name') selectedSampleFile = file;
   if (targetId === 'beat-name') selectedBeatFile = file;
+
+  const prefix = targetId === 'upload-name' ? 'sample' : 'beat';
+  const sizeMb = (file.size / (1024*1024)).toFixed(1);
+  document.getElementById(prefix+'-dropzone-icon').textContent = '✅';
+  document.getElementById(prefix+'-dropzone-text').textContent = file.name;
+  document.getElementById(prefix+'-dropzone-sub').textContent = `${sizeMb} MB — attached. Click to choose a different file.`;
+  document.getElementById(prefix+'-dropzone').style.borderColor = 'var(--accent)';
+}
+
+function resetDropzoneVisual(prefix, icon, text, sub) {
+  document.getElementById(prefix+'-dropzone-icon').textContent = icon;
+  document.getElementById(prefix+'-dropzone-text').textContent = text;
+  document.getElementById(prefix+'-dropzone-sub').textContent = sub;
+  document.getElementById(prefix+'-dropzone').style.borderColor = '';
 }
 
 function handleFile(input,targetId) {
@@ -1743,6 +1773,70 @@ function handleDroppedFile(event, zoneEl, targetId) {
   zoneEl.classList.remove('dragover');
   const file = event.dataTransfer?.files?.[0];
   if (file) applySelectedFile(file, targetId);
+}
+
+// ---- Beat cover art (optional image, shown on the beat's card everywhere) ----
+function applySelectedCoverFile(file) {
+  if (!file) return;
+  if (!file.type.startsWith('image/')) {
+    alert('Please choose an image file (JPG, PNG).');
+    return;
+  }
+  if (file.size > 5*1024*1024) {
+    alert('Cover image too large — max 5MB.');
+    return;
+  }
+  selectedBeatCoverFile = file;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const img = document.getElementById('beat-cover-preview-img');
+    img.src = reader.result;
+    img.style.display = 'block';
+    document.getElementById('beat-cover-dropzone-icon').style.display = 'none';
+  };
+  reader.readAsDataURL(file);
+  document.getElementById('beat-cover-dropzone-text').textContent = file.name;
+  const sizeMb = (file.size / (1024*1024)).toFixed(1);
+  document.getElementById('beat-cover-dropzone-sub').textContent = `${sizeMb} MB — attached. Click to change.`;
+  document.getElementById('beat-cover-dropzone').style.borderColor = 'var(--accent)';
+}
+
+function handleCoverFile(input) {
+  if (input.files[0]) applySelectedCoverFile(input.files[0]);
+}
+
+function handleDroppedCoverFile(event, zoneEl) {
+  event.preventDefault();
+  zoneEl.classList.remove('dragover');
+  const file = event.dataTransfer?.files?.[0];
+  if (file) applySelectedCoverFile(file);
+}
+
+function resetCoverDropzone() {
+  selectedBeatCoverFile = null;
+  const img = document.getElementById('beat-cover-preview-img');
+  img.style.display = 'none';
+  img.src = '';
+  document.getElementById('beat-cover-dropzone-icon').style.display = '';
+  document.getElementById('beat-cover-dropzone-icon').textContent = '🖼️';
+  document.getElementById('beat-cover-dropzone-text').textContent = 'Drop cover art here (optional)';
+  document.getElementById('beat-cover-dropzone-sub').textContent = 'JPG, PNG — square works best, max 5MB';
+  document.getElementById('beat-cover-dropzone').style.borderColor = '';
+}
+
+// Cover art is public marketing material (unlike the audio itself), so a
+// simple permanent public URL is fine — no signing/watermarking needed.
+async function uploadCoverImage(file) {
+  if (!file) return '';
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+  const path = `${Date.now()}-${safeName}`;
+  const { error } = await supabaseClient.storage.from('covers').upload(path, file, {
+    cacheControl: '3600',
+    upsert: false
+  });
+  if (error) throw new Error('Cover upload failed: ' + error.message);
+  const { data } = supabaseClient.storage.from('covers').getPublicUrl(path);
+  return data.publicUrl;
 }
 
 // Upload an audio file to Supabase Storage and return its public URL.
@@ -1974,7 +2068,7 @@ async function submitBeat() {
     key: document.getElementById('beat-key').value||'—',
     genre: document.getElementById('beat-genre').value,
     price, tags: document.getElementById('beat-tags').value.split(',').map(t=>t.trim()).filter(Boolean),
-    sold:false, sellerWallet: walletAddress, emoji:'🎵', color:'#1a1a2e', file_url:'', preview_url:''
+    sold:false, sellerWallet: walletAddress, emoji:'🎵', color:'#1a1a2e', file_url:'', preview_url:'', cover_url:''
   };
   const originalText = btn.textContent;
   btn.disabled = true;
@@ -1994,12 +2088,17 @@ async function submitBeat() {
       const previewFile = new File([previewBlob], 'preview.mp3', { type: 'audio/mp3' });
       newBeat.preview_url = await uploadAudioFile(previewFile, 'beats-preview');
     }
+    if (selectedBeatCoverFile) {
+      updateUploadProgressText('Uploading cover art…');
+      newBeat.cover_url = await uploadCoverImage(selectedBeatCoverFile);
+    }
     updateUploadProgressText('Saving details…');
     await saveBeatToDB(newBeat);
     await logContentAgreement('beat', title);
     BEATS.unshift(newBeat);
     filteredBeats=[...BEATS];
     selectedBeatFile = null;
+    selectedBeatCoverFile = null;
     await completeUploadProgress('Listed successfully ✓');
     renderBeats();
     updateStats();
@@ -2560,7 +2659,7 @@ async function loadBeatsFromDB() {
         buyerWallet: b.buyer_wallet || null,
         soldTo: b.buyer_wallet ? shortAddr(b.buyer_wallet) : null,
         sellerWallet: b.seller_wallet || null,
-        emoji: '🎵', color: '#1a1a2e', file_url: b.file_url, preview_url: b.preview_url || null
+        emoji: '🎵', color: '#1a1a2e', file_url: b.file_url, preview_url: b.preview_url || null, cover_url: b.cover_url || null
       }));
       BEATS.length = 0;
       dbBeats.forEach(b => BEATS.push(b));
@@ -2607,6 +2706,7 @@ async function saveBeatToDB(beat) {
     tags: beat.tags.join(','),
     file_url: beat.file_url || '',
     preview_url: beat.preview_url || null,
+    cover_url: beat.cover_url || null,
     price: beat.price,
     is_sold: false,
     seller_wallet: walletAddress || ''
