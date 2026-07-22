@@ -4,6 +4,22 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Sampla — Sample Exchange</title>
+<meta name="description" content="The beatmaker's marketplace on Solana. Upload samples. Trade beats exclusively.">
+
+<!-- Open Graph (X/Twitter, Discord, WhatsApp, iMessage, Facebook, etc.) -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Sampla">
+<meta property="og:title" content="Sampla — Sample Exchange">
+<meta property="og:description" content="The beatmaker's marketplace on Solana. Upload samples. Trade beats exclusively.">
+<meta property="og:url" content="https://sampla.xyz/">
+<meta property="og:image" content="https://sampla.xyz/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Sampla — Sample Exchange">
+<meta name="twitter:description" content="The beatmaker's marketplace on Solana. Upload samples. Trade beats exclusively.">
+<meta name="twitter:image" content="https://sampla.xyz/og-image.png">
 <style>
   @keyframes sampla-spin { to { transform: rotate(360deg); } }
   :root {
@@ -257,7 +273,7 @@
 
 <div class="app">
   <header class="header">
-    <div class="logo" style="cursor:pointer" onclick="showPage('beats', document.getElementById('nav-beats'))" title="Sampla">SAMPL<span>A</span>.XY<span>Z</span></div>
+    <div class="logo" style="cursor:pointer;display:flex;align-items:center;gap:8px" onclick="showPage('beats', document.getElementById('nav-beats'))" title="Sampla">SAMPL<span>A</span>.XY<span>Z</span><span class="badge badge-new" style="font-size:9px;padding:2px 5px;letter-spacing:0.05em;font-weight:700;vertical-align:middle">BETA</span></div>
     <div class="header-right">
       <div class="wallet-widget">
         <button class="wallet-btn" onclick="onWalletBtnClick()">
