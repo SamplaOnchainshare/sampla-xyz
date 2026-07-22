@@ -1190,11 +1190,14 @@ function playBeat(id) {
   const b = BEATS.find(b=>b.id===id);
   if (!b) return;
   if (currentSample && currentSample.id==='beat-'+b.id) { togglePlay(); return; }
+  // Free beats have nothing to protect — the download button already hands out
+  // the original file, so the Play button should match instead of streaming
+  // the watermarked/downgraded preview.
   playTrack({
     id: 'beat-'+b.id,
-    name: b.title+' — preview',
+    name: b.title + (b.isFree ? '' : ' — preview'),
     artist: b.artist+' · '+b.bpm+' BPM · '+b.key,
-    file_url: b.preview_url || b.file_url,
+    file_url: b.isFree ? (b.file_url || b.preview_url) : (b.preview_url || b.file_url),
     isBeat: true,
     beatId: b.id
   });
