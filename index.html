@@ -1017,6 +1017,12 @@ function beatCardHTML(b) {
         <span class="tag">${b.genre}</span>
         ${b.isFree?`<span class="badge badge-nft" style="background:var(--accent2);color:var(--accent)">Free</span>`:(b.sold?`<span class="badge badge-sold">Sold</span>`:`<span class="badge badge-nft">Exclusive</span>`)}
       </div>
+      <div class="beat-meta" style="margin-top:2px">
+        <span class="tag" style="display:flex;align-items:center;gap:4px;color:var(--text3)" title="Plays"><svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>${(b.playCount||0).toLocaleString()}</span>
+        <button class="tag" style="cursor:pointer;display:flex;align-items:center;gap:4px;background:none;border:1px solid var(--border);color:var(--text3)" onclick="event.stopPropagation();shareBeat(${b.id})" title="Share">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="10.5" x2="15.4" y2="6.5"/><line x1="8.6" y1="13.5" x2="15.4" y2="17.5"/></svg>Share
+        </button>
+      </div>
       <div class="beat-footer">
         <div><div class="beat-price">${b.isFree?'Free':b.price.toLocaleString()+' <span style="font-size:12px;font-weight:500;color:var(--text2)">$SAMPLA</span>'}</div></div>
         ${b.isFree?`<button class="btn-buy" onclick="downloadFreeBeat(${b.id})">Download ↓</button>`
@@ -1190,6 +1196,13 @@ function playBeat(id) {
   const b = BEATS.find(b=>b.id===id);
   if (!b) return;
   if (currentSample && currentSample.id==='beat-'+b.id) { togglePlay(); return; }
+  // Fire-and-forget play count increment — a dedicated RPC function handles
+  // this so anonymous listeners can bump the counter without needing an
+  // ownership-based UPDATE policy. Optimistically update locally too so the
+  // card reflects it immediately instead of waiting on a reload.
+  b.playCount = (b.playCount || 0) + 1;
+  supabaseClient.rpc('increment_beat_play_count', { beat_id: b.id }).catch(()=>{});
+  renderBeats();
   // Free beats have nothing to protect — the download button already hands out
   // the original file, so the Play button should match instead of streaming
   // the watermarked/downgraded preview.
@@ -1201,6 +1214,26 @@ function playBeat(id) {
     isBeat: true,
     beatId: b.id
   });
+}
+
+// Builds a shareable link to this beat and hands it off to the native share
+// sheet (mobile/supported browsers), falling back to copying the link so it
+// can be pasted into X, Discord, etc.
+async function shareBeat(id) {
+  const b = BEATS.find(x => x.id === id);
+  if (!b) return;
+  const url = `${location.origin}${location.pathname}?beat=${id}`;
+  const shareText = `${b.title} by ${displayArtistName(b.artist)} on Sampla`;
+  if (navigator.share) {
+    try { await navigator.share({ title: shareText, url }); return; }
+    catch(e) { if (e.name === 'AbortError') return; }
+  }
+  try {
+    await navigator.clipboard.writeText(url);
+    showToast('Link copied to clipboard!');
+  } catch(e) {
+    showToast('Could not copy link — copy it manually: ' + url);
+  }
 }
 
 function playSample(id) {
@@ -2707,7 +2740,7 @@ async function loadBeatsFromDB() {
         buyerWallet: b.buyer_wallet || null,
         soldTo: b.buyer_wallet ? shortAddr(b.buyer_wallet) : null,
         sellerWallet: b.seller_wallet || null,
-        emoji: '🎵', color: '#1a1a2e', file_url: b.file_url, preview_url: b.preview_url || null, cover_url: b.cover_url || null, isFree: b.is_free || false
+        emoji: '🎵', color: '#1a1a2e', file_url: b.file_url, preview_url: b.preview_url || null, cover_url: b.cover_url || null, isFree: b.is_free || false, playCount: b.play_count || 0
       }));
       BEATS.length = 0;
       dbBeats.forEach(b => BEATS.push(b));
@@ -2981,11 +3014,34 @@ window.addEventListener('load', async () => {
   } catch(e) { console.log('Session restore:', e.message); }
 
   updateStats();
-  loadSamplesFromDB();
-  loadBeatsFromDB();
+  await Promise.all([loadSamplesFromDB(), loadBeatsFromDB()]);
   loadAllProfiles();
   loadAllFollows();
+  handleBeatDeepLink();
 });
+
+// Jumps to the Beat Market and highlights a specific beat when the page is
+// opened via a shared link like sampla.xyz/?beat=123 (see shareBeat()).
+function handleBeatDeepLink() {
+  const params = new URLSearchParams(location.search);
+  const beatId = parseInt(params.get('beat'), 10);
+  if (!beatId) return;
+  const beat = BEATS.find(b => b.id === beatId);
+  if (!beat) return;
+  const marketNav = document.getElementById('nav-beats');
+  showPage('beats', marketNav);
+  setTimeout(() => {
+    const grid = document.getElementById('beats-grid');
+    const idx = filteredBeats.findIndex(b => b.id === beatId);
+    const card = grid && idx >= 0 ? grid.children[idx] : null;
+    if (card) {
+      card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      card.style.outline = '2px solid var(--accent)';
+      card.style.outlineOffset = '2px';
+      setTimeout(() => { card.style.outline = ''; card.style.outlineOffset = ''; }, 2500);
+    }
+  }, 100);
+}
 </script>
 <div style="position:fixed;bottom:0;left:0;right:0;display:flex;justify-content:center;pointer-events:none;z-index:99">
   <div style="background:rgba(10,10,10,0.9);border:1px solid rgba(200,255,0,0.1);border-bottom:none;border-radius:8px 8px 0 0;padding:6px 16px;display:flex;align-items:center;gap:12px;pointer-events:all">
