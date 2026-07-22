@@ -2723,6 +2723,7 @@ function syncPurchasedBeats() {
 
 // Save sample to Supabase — uses the real Auth session so RLS can verify ownership
 async function saveSampleToDB(sample) {
+  if (!currentUserId) { throw new Error('Please reconnect your wallet before uploading.'); }
   const { error } = await supabaseClient.from('samples').insert({
     title: sample.name,
     artist: sample.artist,
@@ -2733,13 +2734,15 @@ async function saveSampleToDB(sample) {
     file_url: sample.file_url || '',
     preview_url: sample.preview_url || null,
     is_premium: sample.pro,
-    wallet_address: walletAddress || ''
+    wallet_address: walletAddress || '',
+    user_id: currentUserId
   });
   if (error) throw error;
 }
 
 // Save beat to Supabase — uses the real Auth session so RLS can verify ownership
 async function saveBeatToDB(beat) {
+  if (!currentUserId) { throw new Error('Please reconnect your wallet before uploading.'); }
   const { error } = await supabaseClient.from('beats').insert({
     title: beat.title,
     artist: beat.artist,
@@ -2753,7 +2756,8 @@ async function saveBeatToDB(beat) {
     price: beat.price,
     is_free: !!beat.isFree,
     is_sold: false,
-    seller_wallet: walletAddress || ''
+    seller_wallet: walletAddress || '',
+    user_id: currentUserId
   });
   if (error) throw error;
 }
