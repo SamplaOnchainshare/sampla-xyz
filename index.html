@@ -1196,13 +1196,6 @@ function playBeat(id) {
   const b = BEATS.find(b=>b.id===id);
   if (!b) return;
   if (currentSample && currentSample.id==='beat-'+b.id) { togglePlay(); return; }
-  // Fire-and-forget play count increment — a dedicated RPC function handles
-  // this so anonymous listeners can bump the counter without needing an
-  // ownership-based UPDATE policy. Optimistically update locally too so the
-  // card reflects it immediately instead of waiting on a reload.
-  b.playCount = (b.playCount || 0) + 1;
-  supabaseClient.rpc('increment_beat_play_count', { beat_id: b.id }).catch(()=>{});
-  renderBeats();
   // Free beats have nothing to protect — the download button already hands out
   // the original file, so the Play button should match instead of streaming
   // the watermarked/downgraded preview.
@@ -1214,6 +1207,14 @@ function playBeat(id) {
     isBeat: true,
     beatId: b.id
   });
+  // Play count increment happens AFTER playback has already started, and is
+  // wrapped defensively so nothing here can ever block/break actual playback.
+  try {
+    b.playCount = (b.playCount || 0) + 1;
+    renderBeats();
+    const req = supabaseClient.rpc('increment_beat_play_count', { beat_id: b.id });
+    if (req && typeof req.then === 'function') req.then(()=>{}, ()=>{});
+  } catch(e) { console.log('play count increment skipped:', e.message); }
 }
 
 // Builds a shareable link to this beat and hands it off to the native share
@@ -1224,7 +1225,8 @@ async function shareBeat(id) {
   if (!b) return;
   const url = `${location.origin}${location.pathname}?beat=${id}`;
   const shareText = `${b.title} by ${displayArtistName(b.artist)} on Sampla`;
-  if (navigator.share) {
+  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  if (isMobile && navigator.share) {
     try { await navigator.share({ title: shareText, url }); return; }
     catch(e) { if (e.name === 'AbortError') return; }
   }
