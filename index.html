@@ -1346,10 +1346,12 @@ async function downloadCurrent() {
   if (currentSample.isBeat) {
     const b = BEATS.find(x => x.id === currentSample.beatId);
     if (!b) return;
-    if (!walletAddress) { alert('Connect your wallet to check purchase status.'); return; }
-    if (!canDownloadBeat(b)) {
-      alert(b.sold ? "This is an exclusive beat that's already sold to someone else." : 'Buy this beat first to unlock the full download.');
-      return;
+    if (!b.isFree) {
+      if (!walletAddress) { alert('Connect your wallet to check purchase status.'); return; }
+      if (!canDownloadBeat(b)) {
+        alert(b.sold ? "This is an exclusive beat that's already sold to someone else." : 'Buy this beat first to unlock the full download.');
+        return;
+      }
     }
   }
   try {
