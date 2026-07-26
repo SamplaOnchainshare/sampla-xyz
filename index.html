@@ -1064,7 +1064,7 @@ function beatCardHTML(b) {
   const isPurchased = purchasedBeats.some(p=>p.id===b.id);
   return `<div class="beat-card ${b.sold?'sold':''}">
     <div class="beat-cover" style="background:${b.color}">
-      ${b.cover_url ? `<img src="${b.cover_url}" class="beat-cover-bg" style="width:100%;height:100%;object-fit:cover" alt="">` : `<span style="position:relative;z-index:1;font-size:36px">${b.emoji}</span>`}
+      ${b.cover_url ? `<img src="${b.cover_url}" class="beat-cover-bg" style="width:100%;height:100%;object-fit:cover" alt="">` : `<span style="font-size:36px">${b.emoji}</span>`}
       ${!b.sold?`<div class="beat-play-overlay" onclick="playBeat(${b.id})"><div class="beat-play-circle"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg></div></div>`:''}
     </div>
     <div class="beat-body">
