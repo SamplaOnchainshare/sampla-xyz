@@ -521,7 +521,7 @@
             <div class="page-tab active" data-tab="beats" onclick="switchProfileTab('beats',this)">My beats</div>
             <div class="page-tab" data-tab="uploads" onclick="switchProfileTab('uploads',this)">My samples</div>
             <div class="page-tab" data-tab="purchased" onclick="switchProfileTab('purchased',this)">Purchased</div>
-            <div class="page-tab" data-tab="saved" onclick="switchProfileTab('saved',this)">Saved</div>
+            <div class="page-tab" data-tab="saved" onclick="switchProfileTab('saved',this)">Favorites</div>
             <div class="page-tab" data-tab="downloads" onclick="switchProfileTab('downloads',this)">Downloads</div>
             <div class="page-tab" data-tab="following" onclick="switchProfileTab('following',this)">Following</div>
             <div class="page-tab" data-tab="followers" onclick="switchProfileTab('followers',this)">Followers</div>
@@ -549,7 +549,7 @@
           </div>
 
           <div id="profile-tab-saved" style="display:none">
-            <div style="font-size:13px;color:var(--text2);margin-bottom:16px">Beats you've saved for later</div>
+            <div style="font-size:13px;color:var(--text2);margin-bottom:16px">Your favorite beats</div>
             <div class="beats-grid" id="saved-beats-grid"></div>
           </div>
 
@@ -1976,7 +1976,7 @@ function renderSavedBeats() {
   const saved = BEATS.filter(b => myFavorites.includes(b.id));
   grid.innerHTML = saved.length
     ? saved.map(b => beatCardHTML(b)).join('')
-    : `<div style="color:var(--text3);font-size:13px;padding:20px 0;grid-column:1/-1">Nothing saved yet — tap the heart on any beat to keep it here.</div>`;
+    : `<div style="color:var(--text3);font-size:13px;padding:20px 0;grid-column:1/-1">No favorites yet — tap the heart on any beat to add it here.</div>`;
 }
 
 // ---- MODALS ----
