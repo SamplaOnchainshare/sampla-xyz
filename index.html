@@ -773,6 +773,49 @@
   </div>
 </div>
 
+<!-- Beat edit modal -->
+<div class="modal-overlay" id="edit-beat-modal" style="display:none" onclick="hideModal('edit-beat-modal',event)">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-title">Edit beat</div>
+    <div class="edit-preview" id="edit-beat-preview-info"></div>
+    <div class="form-group">
+      <label class="form-label">Beat title</label>
+      <input class="form-input" id="edit-beat-title" placeholder="Beat title">
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">BPM</label><input class="form-input" id="edit-beat-bpm" type="number" placeholder="140"></div>
+      <div class="form-group"><label class="form-label">Key</label><input class="form-input" id="edit-beat-key" placeholder="Fm"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Genre</label>
+        <select class="form-input" id="edit-beat-genre" style="cursor:pointer">
+          <option value="trap">Trap</option><option value="lofi">Lo-fi</option><option value="drill">Drill</option>
+          <option value="rnb">R&B</option><option value="ambient">Ambient</option><option value="house">House</option>
+        </select>
+      </div>
+      <div class="form-group" id="edit-beat-price-group">
+        <label class="form-label">Price ($SAMPLA)</label>
+        <input class="form-input" id="edit-beat-price" type="number" placeholder="500">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label" style="display:flex;align-items:center;gap:8px;cursor:pointer">
+        <input type="checkbox" id="edit-beat-free" style="accent-color:var(--accent)" onchange="document.getElementById('edit-beat-price-group').style.display=this.checked?'none':''">
+        This beat is free
+      </label>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Tags (comma separated)</label>
+      <input class="form-input" id="edit-beat-tags" placeholder="dark, melodic, sample-ready">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="hideModal('edit-beat-modal')">Cancel</button>
+      <button class="btn btn-accent" onclick="confirmEditBeat()">Save changes</button>
+    </div>
+  </div>
+</div>
+
 <!-- Wallet select modal -->
 <div class="modal-overlay" id="wallet-select-modal" style="display:none" onclick="hideModal('wallet-select-modal',event)">
   <div class="modal" onclick="event.stopPropagation()">
@@ -999,7 +1042,7 @@ function renderBeats() {
             </div>
           </div>
           <div class="my-sample-actions">
-            ${!b.sold ? `<button class="btn-delete" onclick="event.stopPropagation();openDeleteModal(${b.id},'beat')">🗑️ Remove</button>` : '<span style="font-size:12px;color:var(--text3)">Sold ✓</span>'}
+            ${!b.sold ? `<button class="btn-edit" onclick="event.stopPropagation();openEditBeatModal(${b.id})">✏️ Edit</button><button class="btn-delete" onclick="event.stopPropagation();openDeleteModal(${b.id},'beat')">🗑️ Remove</button>` : '<span style="font-size:12px;color:var(--text3)">Sold ✓</span>'}
           </div>
         </div>`).join('');
     }
@@ -2606,6 +2649,7 @@ async function sbFetch(path, options = {}) {
 let pendingDeleteId = null;
 let pendingDeleteType = null;
 let pendingEditId = null;
+let pendingEditBeatId = null;
 
 function openDeleteModal(id, type) {
   pendingDeleteId = id;
@@ -2677,6 +2721,55 @@ function openEditModal(id) {
   document.getElementById('edit-key').value = s.key !== '—' ? s.key : '';
   document.getElementById('edit-tags').value = s.tags.join(', ');
   document.getElementById('edit-modal').style.display = 'flex';
+}
+
+function openEditBeatModal(id) {
+  const b = BEATS.find(b => b.id === id);
+  if (!b) return;
+  pendingEditBeatId = id;
+  document.getElementById('edit-beat-preview-info').textContent = `Editing: ${b.title}`;
+  document.getElementById('edit-beat-title').value = b.title;
+  document.getElementById('edit-beat-bpm').value = b.bpm || '';
+  document.getElementById('edit-beat-key').value = b.key !== '—' ? b.key : '';
+  document.getElementById('edit-beat-genre').value = b.genre || 'trap';
+  document.getElementById('edit-beat-price').value = b.price || '';
+  document.getElementById('edit-beat-free').checked = !!b.isFree;
+  document.getElementById('edit-beat-price-group').style.display = b.isFree ? 'none' : '';
+  document.getElementById('edit-beat-tags').value = (b.tags || []).join(', ');
+  document.getElementById('edit-beat-modal').style.display = 'flex';
+}
+
+async function confirmEditBeat() {
+  const id = pendingEditBeatId;
+  const b = BEATS.find(b => b.id === id);
+  if (!b) return;
+  const newTitle = document.getElementById('edit-beat-title').value.trim();
+  const newBpm = parseInt(document.getElementById('edit-beat-bpm').value) || 0;
+  const newKey = document.getElementById('edit-beat-key').value.trim() || '—';
+  const newGenre = document.getElementById('edit-beat-genre').value;
+  const newFree = document.getElementById('edit-beat-free').checked;
+  const newPrice = newFree ? 0 : (parseInt(document.getElementById('edit-beat-price').value) || 0);
+  const newTags = document.getElementById('edit-beat-tags').value.split(',').map(t => t.trim()).filter(Boolean);
+  if (!newTitle) { alert('Title cannot be empty'); return; }
+  if (!newFree && newPrice < 1) { alert('Set a price in $SAMPLA, or mark the beat as free'); return; }
+  // Update Supabase — uses the real Auth session so RLS can verify ownership
+  try {
+    const { error } = await supabaseClient.from('beats').update({
+      title: newTitle, bpm: newBpm, key: newKey, genre: newGenre,
+      tags: newTags.join(','), price: newPrice, is_free: newFree
+    }).eq('id', id);
+    if (error) throw error;
+  } catch(e) {
+    console.log('DB update error:', e.message);
+    alert('Update failed: ' + e.message);
+    return;
+  }
+  // Update local
+  b.title = newTitle; b.bpm = newBpm; b.key = newKey; b.genre = newGenre;
+  b.tags = newTags; b.price = newPrice; b.isFree = newFree;
+  hideModal('edit-beat-modal');
+  renderBeats();
+  showToast('Beat updated successfully ✓');
 }
 
 async function confirmEdit() {
