@@ -521,6 +521,7 @@
             <div class="page-tab active" data-tab="beats" onclick="switchProfileTab('beats',this)">My beats</div>
             <div class="page-tab" data-tab="uploads" onclick="switchProfileTab('uploads',this)">My samples</div>
             <div class="page-tab" data-tab="purchased" onclick="switchProfileTab('purchased',this)">Purchased</div>
+            <div class="page-tab" data-tab="saved" onclick="switchProfileTab('saved',this)">Saved</div>
             <div class="page-tab" data-tab="downloads" onclick="switchProfileTab('downloads',this)">Downloads</div>
             <div class="page-tab" data-tab="following" onclick="switchProfileTab('following',this)">Following</div>
             <div class="page-tab" data-tab="followers" onclick="switchProfileTab('followers',this)">Followers</div>
@@ -545,6 +546,11 @@
           <div id="profile-tab-purchased" style="display:none">
             <div style="font-size:13px;color:var(--text2);margin-bottom:16px">NFT licences in your wallet</div>
             <div id="purchased-grid" style="display:flex;flex-direction:column;gap:8px"></div>
+          </div>
+
+          <div id="profile-tab-saved" style="display:none">
+            <div style="font-size:13px;color:var(--text2);margin-bottom:16px">Beats you've saved for later</div>
+            <div class="beats-grid" id="saved-beats-grid"></div>
           </div>
 
           <div id="profile-tab-downloads" style="display:none">
@@ -914,6 +920,7 @@ const SAMPLES = [];
 const BEATS = [];
 
 let purchasedBeats = [];
+let myFavorites = [];
 let currentSample = null; let isPlaying = false;
 let walletConnected = false; let progressInterval = null; let progressPct = 0;
 let filteredSamples = [...SAMPLES]; let activeGenre = null; let activeType = null;
@@ -940,6 +947,8 @@ const ICON_TRASH = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" s
 const ICON_LOCK = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>`;
 const ICON_MIC = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><path d="M12 17v5"/></svg>`;
 const ICON_DOWNLOAD = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>`;
+const ICON_HEART = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z"/></svg>`;
+const ICON_HEART_FILLED = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z"/></svg>`;
 
 // ---- RENDER SAMPLES ----
 // ---- REAL STATS (no more hardcoded fake numbers) ----
@@ -1052,6 +1061,7 @@ function renderBeats() {
   const grid = document.getElementById('beats-grid');
   if (!grid) return;
   grid.innerHTML = filteredBeats.map(b => beatCardHTML(b)).join('');
+  renderSavedBeats();
 
   const myGrid = document.getElementById('my-beats-grid');
   if (myGrid) {
@@ -1112,6 +1122,9 @@ function beatCardHTML(b) {
       </div>
       <div class="beat-meta" style="margin-top:2px">
         <span class="tag" style="display:flex;align-items:center;gap:4px;color:var(--text3)" title="Plays"><svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>${(b.playCount||0).toLocaleString()}</span>
+        <button class="tag" style="cursor:pointer;display:flex;align-items:center;gap:4px;background:none;border:1px solid var(--border);color:${myFavorites.includes(b.id)?'var(--accent)':'var(--text3)'}" onclick="event.stopPropagation();toggleFavorite(${b.id})" title="${myFavorites.includes(b.id)?'Remove from favorites':'Save to favorites'}">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="${myFavorites.includes(b.id)?'currentColor':'none'}" stroke="currentColor" stroke-width="1.6"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z"/></svg>
+        </button>
         <button class="tag" style="cursor:pointer;display:flex;align-items:center;gap:4px;background:none;border:1px solid var(--border);color:var(--text3)" onclick="event.stopPropagation();shareBeat(${b.id})" title="Share">
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="10.5" x2="15.4" y2="6.5"/><line x1="8.6" y1="13.5" x2="15.4" y2="17.5"/></svg>Share
         </button>
@@ -1908,11 +1921,13 @@ function updateProfileTabVisibility() {
   const beatsTab = document.querySelector('.page-tab[data-tab="beats"]');
   const uploadsTab = document.querySelector('.page-tab[data-tab="uploads"]');
   const purchasedTab = document.querySelector('.page-tab[data-tab="purchased"]');
+  const savedTab = document.querySelector('.page-tab[data-tab="saved"]');
   const downloadsTab = document.querySelector('.page-tab[data-tab="downloads"]');
 
   if (beatsTab) beatsTab.style.display = hasBeats ? '' : 'none';
   if (uploadsTab) uploadsTab.style.display = hasSamples ? '' : 'none';
   if (purchasedTab) purchasedTab.style.display = hasPurchased ? '' : 'none';
+  if (savedTab) savedTab.style.display = myFavorites.length ? '' : 'none';
 
   // Downloads has no running client-side count, so check with a cheap query
   if (downloadsTab) {
@@ -1941,13 +1956,27 @@ function switchProfileTab(tab, el) {
   document.getElementById('profile-tab-uploads').style.display = tab==='uploads'?'block':'none';
   document.getElementById('profile-tab-beats').style.display = tab==='beats'?'block':'none';
   document.getElementById('profile-tab-purchased').style.display = tab==='purchased'?'block':'none';
+  document.getElementById('profile-tab-saved').style.display = tab==='saved'?'block':'none';
   document.getElementById('profile-tab-downloads').style.display = tab==='downloads'?'block':'none';
   document.getElementById('profile-tab-following').style.display = tab==='following'?'block':'none';
   document.getElementById('profile-tab-followers').style.display = tab==='followers'?'block':'none';
   renderBeats();
+  if (tab==='saved') renderSavedBeats();
   if (tab==='downloads') loadMyDownloads();
   if (tab==='following') renderMyFollowing();
   if (tab==='followers') renderMyFollowers();
+}
+
+// The Saved tab reuses the normal beat card, just filtered down to whatever
+// is currently in myFavorites — no separate DB round trip needed since
+// BEATS + myFavorites are both already loaded in memory.
+function renderSavedBeats() {
+  const grid = document.getElementById('saved-beats-grid');
+  if (!grid) return;
+  const saved = BEATS.filter(b => myFavorites.includes(b.id));
+  grid.innerHTML = saved.length
+    ? saved.map(b => beatCardHTML(b)).join('')
+    : `<div style="color:var(--text3);font-size:13px;padding:20px 0;grid-column:1/-1">Nothing saved yet — tap the heart on any beat to keep it here.</div>`;
 }
 
 // ---- MODALS ----
@@ -2759,6 +2788,7 @@ async function connectWallet(chosenProvider, walletName) {
     loadAllProfiles();
     await loadAllFollows();
     syncPurchasedBeats();
+    await loadMyFavorites();
     renderSamples();
     renderBeats();
     updateStats();
@@ -3010,6 +3040,7 @@ async function loadBeatsFromDB() {
       dbBeats.forEach(b => BEATS.push(b));
       filteredBeats = [...BEATS];
       syncPurchasedBeats();
+      loadMyFavorites().then(renderBeats);
       renderBeats();
     }
   } catch(e) { console.log('DB load beats:', e.message); }
@@ -3021,6 +3052,43 @@ async function loadBeatsFromDB() {
 // otherwise empty on every page load/refresh.
 function syncPurchasedBeats() {
   purchasedBeats = walletAddress ? BEATS.filter(b => b.buyerWallet === walletAddress) : [];
+}
+
+// Loads the list of beat IDs the current wallet has saved to their
+// favorites, so heart icons render correctly filled/outline on load.
+async function loadMyFavorites() {
+  if (!walletConnected || !currentUserId) { myFavorites = []; return; }
+  try {
+    const data = await sbFetch(`favorites?user_id=eq.${currentUserId}&select=beat_id`);
+    myFavorites = (data || []).map(f => f.beat_id);
+  } catch(e) {
+    console.log('loadMyFavorites:', e.message);
+  }
+}
+
+// Toggles a beat in/out of the current wallet's favorites. Optimistic on
+// the heart icon, but the actual add/remove goes straight to Supabase so a
+// refresh always reflects the real, persisted state.
+async function toggleFavorite(id) {
+  if (!walletConnected) { connectWallet(); return; }
+  const isFav = myFavorites.includes(id);
+  try {
+    if (isFav) {
+      const { error } = await supabaseClient.from('favorites').delete().eq('user_id', currentUserId).eq('beat_id', id);
+      if (error) throw error;
+      myFavorites = myFavorites.filter(fid => fid !== id);
+    } else {
+      const { error } = await supabaseClient.from('favorites').insert({ user_id: currentUserId, beat_id: id });
+      if (error) throw error;
+      myFavorites.push(id);
+    }
+  } catch(e) {
+    console.log('toggleFavorite:', e.message);
+    showToast("Couldn't update favorites — try again.");
+    return;
+  }
+  renderBeats();
+  updateProfileTabVisibility();
 }
 
 // Save sample to Supabase — uses the real Auth session so RLS can verify ownership
