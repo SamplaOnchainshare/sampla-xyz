@@ -3040,7 +3040,7 @@ async function loadBeatsFromDB() {
       dbBeats.forEach(b => BEATS.push(b));
       filteredBeats = [...BEATS];
       syncPurchasedBeats();
-      loadMyFavorites().then(renderBeats);
+      await loadMyFavorites();
       renderBeats();
     }
   } catch(e) { console.log('DB load beats:', e.message); }
@@ -3079,7 +3079,14 @@ async function toggleFavorite(id) {
       myFavorites = myFavorites.filter(fid => fid !== id);
     } else {
       const { error } = await supabaseClient.from('favorites').insert({ user_id: currentUserId, beat_id: id });
-      if (error) throw error;
+      if (error) {
+        // Postgres 23505 = unique_violation. This means our local
+        // myFavorites hadn't finished loading yet when the click landed, so
+        // we tried to re-add something already saved — treat it as a sync
+        // fix rather than a real failure, since the end state is correct.
+        if (error.code === '23505') { myFavorites.push(id); renderBeats(); updateProfileTabVisibility(); return; }
+        throw error;
+      }
       myFavorites.push(id);
     }
   } catch(e) {
