@@ -821,6 +821,23 @@
   </div>
 </div>
 
+<!-- Share modal -->
+<div class="modal-overlay" id="share-modal" style="display:none" onclick="hideModal('share-modal',event)">
+  <div class="modal" onclick="event.stopPropagation()" style="max-width:380px">
+    <div class="modal-title" id="share-modal-title">Share</div>
+    <div style="display:flex;gap:8px;margin-bottom:16px">
+      <input class="form-input" id="share-modal-link" readonly style="flex:1;font-size:12px;color:var(--text2)" onclick="this.select()">
+      <button class="btn btn-accent btn-sm" style="flex-shrink:0" onclick="copyShareLink()">Copy</button>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <button class="btn btn-ghost" id="share-x-btn" style="justify-content:center">X</button>
+      <button class="btn btn-ghost" id="share-whatsapp-btn" style="justify-content:center">WhatsApp</button>
+      <button class="btn btn-ghost" id="share-telegram-btn" style="justify-content:center">Telegram</button>
+      <button class="btn btn-ghost" id="share-email-btn" style="justify-content:center">Email</button>
+    </div>
+  </div>
+</div>
+
 <!-- Wallet select modal -->
 <div class="modal-overlay" id="wallet-select-modal" style="display:none" onclick="hideModal('wallet-select-modal',event)">
   <div class="modal" onclick="event.stopPropagation()">
@@ -1326,11 +1343,31 @@ async function shareBeat(id) {
     try { await navigator.share({ title: shareText, url }); return; }
     catch(e) { if (e.name === 'AbortError') return; }
   }
+  openShareModal(url, shareText);
+}
+
+// Generic share modal — used from shareBeat() (and reusable for samples
+// later). Wires up proper share-intent URLs for each platform instead of
+// only offering a bare clipboard copy.
+function openShareModal(url, text) {
+  document.getElementById('share-modal-title').textContent = 'Share this beat';
+  document.getElementById('share-modal-link').value = url;
+  const enc = encodeURIComponent;
+  document.getElementById('share-x-btn').onclick = () => window.open(`https://twitter.com/intent/tweet?text=${enc(text)}&url=${enc(url)}`, '_blank');
+  document.getElementById('share-whatsapp-btn').onclick = () => window.open(`https://wa.me/?text=${enc(text + ' ' + url)}`, '_blank');
+  document.getElementById('share-telegram-btn').onclick = () => window.open(`https://t.me/share/url?url=${enc(url)}&text=${enc(text)}`, '_blank');
+  document.getElementById('share-email-btn').onclick = () => { location.href = `mailto:?subject=${enc(text)}&body=${enc(text + '\n\n' + url)}`; };
+  document.getElementById('share-modal').style.display = 'flex';
+}
+
+async function copyShareLink() {
+  const input = document.getElementById('share-modal-link');
   try {
-    await navigator.clipboard.writeText(url);
+    await navigator.clipboard.writeText(input.value);
     showToast('Link copied to clipboard!');
   } catch(e) {
-    showToast('Could not copy link — copy it manually: ' + url);
+    input.select();
+    showToast('Press Cmd/Ctrl+C to copy');
   }
 }
 
