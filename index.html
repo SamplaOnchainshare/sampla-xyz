@@ -1037,7 +1037,7 @@ function renderBeats() {
             <div class="my-sample-meta">
               <span>${b.bpm} BPM</span>
               <span>${b.key}</span>
-              <span style="color:var(--accent);font-weight:600">${b.price.toLocaleString()} $SAMPLA</span>
+              ${b.isFree ? `<span style="color:var(--accent);font-weight:600">Free</span>` : `<span style="color:var(--accent);font-weight:600">${b.price.toLocaleString()} $SAMPLA</span>`}
               ${b.sold ? `<span style="color:var(--text3)">Sold to: ${b.soldTo || 'anon'}</span>` : ''}
             </div>
           </div>
