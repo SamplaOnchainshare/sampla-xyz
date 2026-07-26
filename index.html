@@ -1071,6 +1071,7 @@ function renderBeats() {
         ${b.cover_url ? `<img src="${b.cover_url}" style="width:36px;height:36px;object-fit:cover;border-radius:6px;flex-shrink:0" alt="">` : `<div style="width:26px;height:26px;color:var(--text3)">${ICON_MUSIC}</div>`}
         <div style="flex:1"><div style="font-size:14px;font-weight:600">${b.title}</div><div style="font-size:12px;color:var(--text2)">${displayArtistName(b.artist)} · ${b.bpm} BPM · ${b.key}</div></div>
         <span class="badge badge-nft">NFT owned</span>
+        <button class="btn-buy" onclick="downloadPurchasedBeat(${b.id})">Download ↓</button>
       </div>`).join('')
     : `<div style="color:var(--text3);font-size:13px;padding:20px 0">No purchased beats yet. Browse the Beat Market!</div>`;
   }
@@ -1101,7 +1102,7 @@ function beatCardHTML(b) {
       <div class="beat-footer">
         <div><div class="beat-price">${b.isFree?'Free':b.price.toLocaleString()+' <span style="font-size:12px;font-weight:500;color:var(--text2)">$SAMPLA</span>'}</div></div>
         ${b.isFree?`<button class="btn-buy" onclick="downloadFreeBeat(${b.id})">Download ↓</button>`
-          :isPurchased?`<span class="badge badge-nft">You own this</span>`
+          :isPurchased?`<button class="btn-buy" onclick="downloadPurchasedBeat(${b.id})">Download ↓</button>`
           :b.sold?`<button class="btn-sold">Sold out</button>`
           :`<button class="btn-buy" onclick="openBuyModal(${b.id})">Buy beat →</button>`}
       </div>
@@ -1117,7 +1118,24 @@ async function downloadFreeBeat(id) {
   if (!b.file_url) { alert('No audio file available to download.'); return; }
   try {
     const url = await resolvePlayableUrl(b.file_url, 300);
-    window.open(url, '_blank');
+    const ext = (b.file_url.match(/\.([a-zA-Z0-9]+)(\?|$)/) || [,'mp3'])[1];
+    await triggerDownload(url, `${b.title}.${ext}`);
+  } catch(e) {
+    alert('Download failed: ' + e.message);
+  }
+}
+
+// Owners of a purchased (paid) beat get the same real-download treatment as
+// free beats — the only difference is the ownership check up front.
+async function downloadPurchasedBeat(id) {
+  const b = BEATS.find(x => x.id === id);
+  if (!b) return;
+  if (!canDownloadBeat(b)) { alert('You need to own this beat to download it.'); return; }
+  if (!b.file_url) { alert('No audio file available to download.'); return; }
+  try {
+    const url = await resolvePlayableUrl(b.file_url, 300);
+    const ext = (b.file_url.match(/\.([a-zA-Z0-9]+)(\?|$)/) || [,'mp3'])[1];
+    await triggerDownload(url, `${b.title}.${ext}`);
   } catch(e) {
     alert('Download failed: ' + e.message);
   }
@@ -1366,7 +1384,8 @@ async function downloadSample(id) {
   if (!s.file_url) { alert('No audio file available for this sample yet.'); return; }
   try {
     const url = await resolvePlayableUrl(s.file_url, 300);
-    window.open(url, '_blank');
+    const ext = (s.file_url.match(/\.([a-zA-Z0-9]+)(\?|$)/) || [,'mp3'])[1];
+    await triggerDownload(url, `${s.name}.${ext}`);
     logSampleDownload(s);
   } catch(e) {
     alert('Download failed: ' + e.message);
@@ -1506,7 +1525,8 @@ async function downloadCurrent() {
   }
   try {
     const url = await resolvePlayableUrl(currentSample.file_url, 300);
-    window.open(url, '_blank');
+    const ext = (currentSample.file_url.match(/\.([a-zA-Z0-9]+)(\?|$)/) || [,'mp3'])[1];
+    await triggerDownload(url, `${currentSample.name}.${ext}`);
   } catch(e) {
     alert('Download failed: ' + e.message);
   }
@@ -2139,6 +2159,31 @@ async function uploadAudioFile(file, folder) {
 // into a fresh, short-lived signed URL. Anyone grabbing this link from
 // devtools still only gets it for `expiresIn` seconds — it can't be saved
 // and reused later, unlike the old permanent public URLs.
+// Forces a real browser download instead of navigating to the file (which,
+// for audio, just opens the browser's built-in player in a new tab). We
+// fetch the signed URL ourselves and hand the bytes to the browser via a
+// temporary <a download> link, so the "Download" button actually downloads.
+// Falls back to opening the link directly if the fetch is ever blocked
+// (e.g. a CORS hiccup) so the action never silently does nothing.
+async function triggerDownload(url, filename) {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('Network response was not ok');
+    const blob = await res.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = blobUrl;
+    a.download = filename || 'download';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+  } catch(e) {
+    console.log('triggerDownload fetch/blob failed, falling back to window.open:', e.message);
+    window.open(url, '_blank');
+  }
+}
+
 async function resolvePlayableUrl(rawValue, expiresIn = 60) {
   if (!rawValue) return '';
   const marker = '/storage/v1/object/public/audio/';
