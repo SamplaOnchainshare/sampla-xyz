@@ -414,17 +414,22 @@
           <div class="page-header">
             <div>
               <div class="page-title">Trending</div>
-              <div class="page-sub">What's hot right now — recent purchases and downloads across Sampla</div>
+              <div class="page-sub">What's hot right now — fresh uploads, recent purchases, and downloads across Sampla</div>
             </div>
           </div>
 
           <div style="margin-bottom:28px">
-            <div style="font-size:14px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:6px">🔥 Recently sold beats</div>
+            <div style="font-size:14px;font-weight:700;margin-bottom:12px">Fresh uploads</div>
+            <div id="trending-fresh-grid" style="display:flex;flex-direction:column;gap:8px"></div>
+          </div>
+
+          <div style="margin-bottom:28px">
+            <div style="font-size:14px;font-weight:700;margin-bottom:12px">Recently sold beats</div>
             <div class="beats-grid" id="trending-beats-grid"></div>
           </div>
 
           <div>
-            <div style="font-size:14px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:6px">⬇️ Recently downloaded samples</div>
+            <div style="font-size:14px;font-weight:700;margin-bottom:12px">Recently downloaded samples</div>
             <div id="trending-downloads-grid" style="display:flex;flex-direction:column;gap:8px"></div>
           </div>
         </div>
@@ -590,7 +595,7 @@
       ondragover="event.preventDefault(); this.classList.add('dragover')"
       ondragleave="this.classList.remove('dragover')"
       ondrop="handleDroppedFile(event, this, 'upload-name')">
-      <div class="dropzone-icon" id="sample-dropzone-icon">🎵</div>
+      <div class="dropzone-icon" id="sample-dropzone-icon" style="width:26px;height:26px;margin:0 auto 8px;color:var(--text2)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></div>
       <div class="dropzone-text" id="sample-dropzone-text">Drop your audio file here</div>
       <div class="dropzone-sub" id="sample-dropzone-sub">WAV, MP3, FLAC — max 50MB</div>
       <input type="file" id="file-input" accept="audio/*" style="display:none" onchange="handleFile(this,'upload-name')">
@@ -631,7 +636,7 @@
       ondragleave="this.classList.remove('dragover')"
       ondrop="handleDroppedCoverFile(event, this)" style="padding:16px">
       <img id="beat-cover-preview-img" style="display:none;width:56px;height:56px;object-fit:cover;border-radius:8px;margin:0 auto 8px;">
-      <div class="dropzone-icon" id="beat-cover-dropzone-icon" style="font-size:20px;margin-bottom:6px">🖼️</div>
+      <div class="dropzone-icon" id="beat-cover-dropzone-icon" style="width:20px;height:20px;margin:0 auto 6px;color:var(--text2)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg></div>
       <div class="dropzone-text" id="beat-cover-dropzone-text" style="font-size:12px">Drop cover art here (optional)</div>
       <div class="dropzone-sub" id="beat-cover-dropzone-sub">JPG, PNG — square works best, max 5MB</div>
       <input type="file" id="beat-cover-input" accept="image/*" style="display:none" onchange="handleCoverFile(this)">
@@ -640,7 +645,7 @@
       ondragover="event.preventDefault(); this.classList.add('dragover')"
       ondragleave="this.classList.remove('dragover')"
       ondrop="handleDroppedFile(event, this, 'beat-name')">
-      <div class="dropzone-icon" id="beat-dropzone-icon">🎹</div>
+      <div class="dropzone-icon" id="beat-dropzone-icon" style="width:26px;height:26px;margin:0 auto 8px;color:var(--text2)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></div>
       <div class="dropzone-text" id="beat-dropzone-text">Drop your beat file here</div>
       <div class="dropzone-sub" id="beat-dropzone-sub">WAV, MP3 — buyers get the full file after purchase</div>
       <input type="file" id="beat-file-input" accept="audio/*" style="display:none" onchange="handleFile(this,'beat-name')">
@@ -739,7 +744,7 @@
 <!-- Delete confirm modal -->
 <div class="modal-overlay" id="delete-modal" style="display:none" onclick="hideModal('delete-modal',event)">
   <div class="modal confirm-modal" onclick="event.stopPropagation()">
-    <div class="confirm-icon">🗑️</div>
+    <div class="confirm-icon" style="width:36px;height:36px;margin:0 auto 12px;color:var(--red)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></div>
     <div class="confirm-title">Delete this sample?</div>
     <div class="confirm-sub" id="delete-modal-sub">This will permanently remove the sample from Sampla. This action cannot be undone.</div>
     <div class="confirm-actions">
@@ -864,7 +869,7 @@
 <!-- Delete beat confirm modal -->
 <div class="modal-overlay" id="delete-beat-modal" style="display:none" onclick="hideModal('delete-beat-modal',event)">
   <div class="modal confirm-modal" onclick="event.stopPropagation()">
-    <div class="confirm-icon">🗑️</div>
+    <div class="confirm-icon" style="width:36px;height:36px;margin:0 auto 12px;color:var(--red)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></div>
     <div class="confirm-title">Remove this beat?</div>
     <div class="confirm-sub" id="delete-beat-sub">This will permanently remove your beat listing. This action cannot be undone.</div>
     <div class="confirm-actions">
@@ -907,6 +912,17 @@ let pendingAvatarEmoji = null;
 let pendingAvatarUrl = null;
 let pendingAvatarPreviewDataUrl = null;
 const AVATAR_EMOJIS = ['🎧','🎤','🎹','🥁','🎸','🎛️','🔥','⚡','🌙','👾','🐺','🦊','💀','👑','🌀','🎵'];
+
+// Reusable line-icon SVGs — used everywhere the UI previously relied on
+// emoji glyphs (dropzones, empty states, delete confirmations, etc). The
+// avatar-picker emoji above is the one deliberate exception: those are
+// user-facing content choices, not interface chrome.
+const ICON_MUSIC = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>`;
+const ICON_IMAGE = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>`;
+const ICON_TRASH = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>`;
+const ICON_LOCK = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>`;
+const ICON_MIC = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><path d="M12 17v5"/></svg>`;
+const ICON_DOWNLOAD = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>`;
 
 // ---- RENDER SAMPLES ----
 // ---- REAL STATS (no more hardcoded fake numbers) ----
@@ -981,7 +997,7 @@ function renderSamples() {
       <div class="sample-dur">${s.dur}</div>
       <div class="sample-tags">${s.tags.slice(0,2).map(t=>`<span class="tag">${t}</span>`).join('')}</div>
       <div class="sample-actions">
-        ${s.pro&&!walletConnected?`<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();alert('Hold $SAMPLA to access premium samples.')">🔒</button>`:`<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();downloadSample(${s.id})">↓</button>`}
+        ${s.pro&&!walletConnected?`<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();alert('Hold $SAMPLA to access premium samples.')" style="display:inline-flex;align-items:center"><span style="width:13px;height:13px;display:inline-block">${ICON_LOCK}</span></button>`:`<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();downloadSample(${s.id})">↓</button>`}
       </div>
     </div>`;
   }).join('');
@@ -990,7 +1006,7 @@ function renderSamples() {
   if (myGrid) {
     const mine = SAMPLES.filter(s => walletAddress && s.artist === walletAddress.slice(0,4)+'...'+walletAddress.slice(-4));
     if (!mine.length) {
-      myGrid.innerHTML = `<div class="empty-state"><div class="empty-state-icon">🎵</div><div class="empty-state-text">No uploads yet</div><div class="empty-state-sub">Hit "+ Upload sample" to share your first sample</div></div>`;
+      myGrid.innerHTML = `<div class="empty-state"><div class="empty-state-icon" style="width:32px;height:32px;margin:0 auto 12px;color:var(--text3)">${ICON_MUSIC}</div><div class="empty-state-text">No uploads yet</div><div class="empty-state-sub">Hit "+ Upload sample" to share your first sample</div></div>`;
     } else {
       myGrid.innerHTML = mine.map(s => `
         <div class="my-sample-row" id="my-sample-${s.id}">
@@ -1006,8 +1022,8 @@ function renderSamples() {
             </div>
           </div>
           <div class="my-sample-actions">
-            <button class="btn-edit" onclick="event.stopPropagation();openEditModal(${s.id})">✏️ Edit</button>
-            <button class="btn-delete" onclick="event.stopPropagation();openDeleteModal(${s.id},'sample')">🗑️</button>
+            <button class="btn-edit" onclick="event.stopPropagation();openEditModal(${s.id})">Edit</button>
+            <button class="btn-delete" onclick="event.stopPropagation();openDeleteModal(${s.id},'sample')">Remove</button>
           </div>
         </div>`).join('');
     }
@@ -1024,7 +1040,7 @@ function renderBeats() {
   if (myGrid) {
     const mine = BEATS.filter(b => walletAddress && b.artist === walletAddress.slice(0,4)+'...'+walletAddress.slice(-4));
     if (!mine.length) {
-      myGrid.innerHTML = `<div class="empty-state"><div class="empty-state-icon">🎹</div><div class="empty-state-text">No beats listed yet</div><div class="empty-state-sub">Hit "+ List beat" to put your beat on the market</div></div>`;
+      myGrid.innerHTML = `<div class="empty-state"><div class="empty-state-icon" style="width:32px;height:32px;margin:0 auto 12px;color:var(--text3)">${ICON_MUSIC}</div><div class="empty-state-text">No beats listed yet</div><div class="empty-state-sub">Hit "+ List beat" to put your beat on the market</div></div>`;
     } else {
       myGrid.innerHTML = mine.map(b => `
         <div class="my-sample-row" id="my-beat-${b.id}">
@@ -1042,7 +1058,7 @@ function renderBeats() {
             </div>
           </div>
           <div class="my-sample-actions">
-            ${!b.sold ? `<button class="btn-edit" onclick="event.stopPropagation();openEditBeatModal(${b.id})">✏️ Edit</button><button class="btn-delete" onclick="event.stopPropagation();openDeleteModal(${b.id},'beat')">🗑️ Remove</button>` : '<span style="font-size:12px;color:var(--text3)">Sold ✓</span>'}
+            ${!b.sold ? `<button class="btn-edit" onclick="event.stopPropagation();openEditBeatModal(${b.id})">Edit</button><button class="btn-delete" onclick="event.stopPropagation();openDeleteModal(${b.id},'beat')">Remove</button>` : '<span style="font-size:12px;color:var(--text3)">Sold ✓</span>'}
           </div>
         </div>`).join('');
     }
@@ -1052,7 +1068,7 @@ function renderBeats() {
   if (pGrid) {
     pGrid.innerHTML = purchasedBeats.length ? purchasedBeats.map(b=>`
       <div style="background:var(--bg2);border:1px solid rgba(138,43,226,0.2);border-radius:8px;padding:14px 16px;display:flex;align-items:center;gap:14px">
-        ${b.cover_url ? `<img src="${b.cover_url}" style="width:36px;height:36px;object-fit:cover;border-radius:6px;flex-shrink:0" alt="">` : `<div style="font-size:26px">${b.emoji}</div>`}
+        ${b.cover_url ? `<img src="${b.cover_url}" style="width:36px;height:36px;object-fit:cover;border-radius:6px;flex-shrink:0" alt="">` : `<div style="width:26px;height:26px;color:var(--text3)">${ICON_MUSIC}</div>`}
         <div style="flex:1"><div style="font-size:14px;font-weight:600">${b.title}</div><div style="font-size:12px;color:var(--text2)">${displayArtistName(b.artist)} · ${b.bpm} BPM · ${b.key}</div></div>
         <span class="badge badge-nft">NFT owned</span>
       </div>`).join('')
@@ -1064,7 +1080,7 @@ function beatCardHTML(b) {
   const isPurchased = purchasedBeats.some(p=>p.id===b.id);
   return `<div class="beat-card ${b.sold?'sold':''}">
     <div class="beat-cover" style="background:${b.color}">
-      ${b.cover_url ? `<img src="${b.cover_url}" class="beat-cover-bg" style="width:100%;height:100%;object-fit:cover" alt="">` : `<span style="font-size:36px">${b.emoji}</span>`}
+      ${b.cover_url ? `<img src="${b.cover_url}" class="beat-cover-bg" style="width:100%;height:100%;object-fit:cover" alt="">` : `<span style="width:36px;height:36px;display:inline-flex;color:var(--text3)">${ICON_MUSIC}</span>`}
       ${!b.sold?`<div class="beat-play-overlay" onclick="playBeat(${b.id})"><div class="beat-play-circle"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg></div></div>`:''}
     </div>
     <div class="beat-body">
@@ -1117,7 +1133,7 @@ function openBuyModal(id) {
   const creator = b.price - fee;
   const coverHtml = b.cover_url
     ? `<img src="${b.cover_url}" style="width:44px;height:44px;object-fit:cover;border-radius:6px;flex-shrink:0" alt="">`
-    : `<span style="font-size:28px">${b.emoji}</span>`;
+    : `<span style="width:28px;height:28px;display:inline-flex;color:var(--text3)">${ICON_MUSIC}</span>`;
   document.getElementById('buy-beat-info').innerHTML = `<div style="display:flex;align-items:center;gap:12px;background:var(--bg3);border-radius:8px;padding:12px;margin-bottom:0">${coverHtml}<div><div style="font-weight:600">${b.title}</div><div style="font-size:12px;color:var(--text2)">${displayArtistName(b.artist)} · ${b.bpm} BPM · ${b.key}</div></div></div>`;
   document.getElementById('buy-price-display').textContent = b.price.toLocaleString() + ' $SAMPLA';
   document.getElementById('buy-fee-display').textContent = fee.toLocaleString() + ' $SAMPLA (→ platform)';
@@ -1200,7 +1216,7 @@ async function confirmBuy() {
 
     const shortSig = signature.slice(0,8)+'...'+signature.slice(-8);
     setTimeout(() => {
-      if (confirm(`🎉 Purchase complete!\n\n"${b.title}"\n${creatorAmount.toLocaleString()} $SAMPLA → creator\n${fee.toLocaleString()} $SAMPLA → platform fee\n\nTx: ${shortSig}\n\nOpen on Solscan?`)) {
+      if (confirm(`Purchase complete!\n\n"${b.title}"\n${creatorAmount.toLocaleString()} $SAMPLA → creator\n${fee.toLocaleString()} $SAMPLA → platform fee\n\nTx: ${shortSig}\n\nOpen on Solscan?`)) {
         window.open('https://solscan.io/tx/' + signature, '_blank');
       }
     }, 100);
@@ -1387,7 +1403,7 @@ async function loadMyDownloads() {
     }
     grid.innerHTML = data.map(d => `
       <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:12px 16px;display:flex;align-items:center;gap:14px">
-        <div style="font-size:20px">🎵</div>
+        <div style="width:20px;height:20px;color:var(--text3)">${ICON_MUSIC}</div>
         <div style="flex:1"><div style="font-size:14px;font-weight:600">${d.sample_title || 'Untitled sample'}</div><div style="font-size:12px;color:var(--text2)">${d.sample_artist || ''}</div></div>
         <div style="font-size:11px;color:var(--text3)">${new Date(d.downloaded_at).toLocaleDateString()}</div>
       </div>`).join('');
@@ -1397,11 +1413,48 @@ async function loadMyDownloads() {
   }
 }
 
-// Loads sitewide activity for the Trending page: recently sold beats +
-// recently downloaded samples, across every user (not just your own).
+// Loads sitewide activity for the Trending page: fresh uploads (beats +
+// samples merged by recency) + recently sold beats + recently downloaded
+// samples, across every user (not just your own).
 async function loadTrendingFeed() {
+  const freshGrid = document.getElementById('trending-fresh-grid');
   const beatsGrid = document.getElementById('trending-beats-grid');
   const downloadsGrid = document.getElementById('trending-downloads-grid');
+
+  if (freshGrid) {
+    // Merge the newest beats and samples into one feed. Both arrays are
+    // already loaded ordered by created_at desc from the DB, and each item
+    // now carries its own createdAt, so a straight sort correctly interleaves
+    // the two content types by real recency instead of showing them in blocks.
+    const freshItems = [
+      ...BEATS.map(b => ({ type: 'beat', createdAt: b.createdAt, item: b })),
+      ...SAMPLES.map(s => ({ type: 'sample', createdAt: s.createdAt, item: s }))
+    ].filter(x => x.createdAt)
+     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+     .slice(0, 12);
+
+    freshGrid.innerHTML = freshItems.length
+      ? freshItems.map(({type, item}) => {
+          const isBeat = type === 'beat';
+          const title = isBeat ? item.title : item.name;
+          const priceTag = isBeat
+            ? (item.isFree ? `<span class="tag" style="color:var(--accent)">Free</span>` : `<span class="tag" style="color:var(--accent)">${item.price.toLocaleString()} $SAMPLA</span>`)
+            : `<span class="tag">Sample</span>`;
+          const playAction = isBeat ? `playBeat(${item.id})` : `playSample(${item.id})`;
+          return `<div style="background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:12px 16px;display:flex;align-items:center;gap:14px;cursor:pointer" onclick="${playAction}">
+            <button class="play-btn" onclick="event.stopPropagation();${playAction}">
+              <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            </button>
+            <div style="flex:1">
+              <div style="font-size:14px;font-weight:600">${title} <span class="badge ${isBeat?'badge-nft':''}" style="font-size:10px;vertical-align:middle">${isBeat?'Beat':'Sample'}</span></div>
+              <div style="font-size:12px;color:var(--text2)">${displayArtistName(item.artist)}</div>
+            </div>
+            ${priceTag}
+            <div style="font-size:11px;color:var(--text3)">${new Date(item.createdAt).toLocaleDateString()}</div>
+          </div>`;
+        }).join('')
+      : `<div style="color:var(--text3);font-size:13px;padding:20px 0">Nothing uploaded yet — be the first!</div>`;
+  }
 
   if (beatsGrid) {
     const recentlySold = BEATS.filter(b => b.sold).sort((a,b) => b.id - a.id).slice(0, 12);
@@ -1417,7 +1470,7 @@ async function loadTrendingFeed() {
       downloadsGrid.innerHTML = (data && data.length)
         ? data.map(d => `
           <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:12px 16px;display:flex;align-items:center;gap:14px">
-            <div style="font-size:20px">⬇️</div>
+            <div style="width:20px;height:20px;color:var(--text3)">${ICON_DOWNLOAD}</div>
             <div style="flex:1"><div style="font-size:14px;font-weight:600">${d.sample_title || 'Untitled sample'}</div><div style="font-size:12px;color:var(--text2)">${d.sample_artist || ''} · downloaded by ${shortAddr(d.wallet_address)}</div></div>
             <div style="font-size:11px;color:var(--text3)">${new Date(d.downloaded_at).toLocaleDateString()}</div>
           </div>`).join('')
@@ -1665,7 +1718,7 @@ function renderArtistProfile() {
   const beatsGrid = document.getElementById('artist-beats-grid');
   beatsGrid.innerHTML = theirBeats.length
     ? theirBeats.map(b => beatCardHTML(b)).join('')
-    : `<div class="empty-state"><div class="empty-state-icon">🎹</div><div class="empty-state-text">No beats listed yet</div></div>`;
+    : `<div class="empty-state"><div class="empty-state-icon" style="width:32px;height:32px;margin:0 auto 12px;color:var(--text3)">${ICON_MUSIC}</div><div class="empty-state-text">No beats listed yet</div></div>`;
 
   const samplesGrid = document.getElementById('artist-samples-grid');
   samplesGrid.innerHTML = theirSamples.length
@@ -1683,10 +1736,10 @@ function renderArtistProfile() {
           </div>
         </div>
         <div class="my-sample-actions">
-          ${s.pro&&!walletConnected?`<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();alert('Hold $SAMPLA to access premium samples.')">🔒</button>`:`<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();downloadSample(${s.id})">↓</button>`}
+          ${s.pro&&!walletConnected?`<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();alert('Hold $SAMPLA to access premium samples.')" style="display:inline-flex;align-items:center"><span style="width:13px;height:13px;display:inline-block">${ICON_LOCK}</span></button>`:`<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();downloadSample(${s.id})">↓</button>`}
         </div>
       </div>`).join('')
-    : `<div class="empty-state"><div class="empty-state-icon">🎵</div><div class="empty-state-text">No samples uploaded yet</div></div>`;
+    : `<div class="empty-state"><div class="empty-state-icon" style="width:32px;height:32px;margin:0 auto 12px;color:var(--text3)">${ICON_MUSIC}</div><div class="empty-state-text">No samples uploaded yet</div></div>`;
 
   const followingGrid = document.getElementById('artist-following-grid');
   const theirFollowing = allFollows.filter(f => f.follower_wallet === shortWallet).map(f => f.following_wallet);
@@ -1736,7 +1789,7 @@ function renderArtistsDirectory() {
   BEATS.forEach(b => { if (b.artist) wallets.add(b.artist); });
   const list = [...wallets];
   if (!list.length) {
-    grid.innerHTML = `<div class="empty-state"><div class="empty-state-icon">🎤</div><div class="empty-state-text">No artists yet</div></div>`;
+    grid.innerHTML = `<div class="empty-state"><div class="empty-state-icon" style="width:32px;height:32px;margin:0 auto 12px;color:var(--text3)">${ICON_MIC}</div><div class="empty-state-text">No artists yet</div></div>`;
     return;
   }
   grid.innerHTML = list.map(shortWallet => {
@@ -1843,7 +1896,7 @@ function switchProfileTab(tab, el) {
 // ---- MODALS ----
 function showUpload() {
   if(!walletConnected){connectWallet();return;}
-  resetDropzoneVisual('sample', '🎵', 'Drop your audio file here', 'WAV, MP3, FLAC — max 50MB');
+  resetDropzoneVisual('sample', ICON_MUSIC, 'Drop your audio file here', 'WAV, MP3, FLAC — max 50MB');
   selectedSampleFile = null;
   document.getElementById('upload-modal').style.display='flex';
 }
@@ -1862,7 +1915,7 @@ function setBeatListingType(type) {
 
 function showBeatUpload() {
   if(!walletConnected){connectWallet();return;}
-  resetDropzoneVisual('beat', '🎹', 'Drop your beat file here', 'WAV, MP3 — buyers get the full file after purchase');
+  resetDropzoneVisual('beat', ICON_MUSIC, 'Drop your beat file here', 'WAV, MP3 — buyers get the full file after purchase');
   selectedBeatFile = null;
   resetCoverDropzone();
   setBeatListingType('sale');
@@ -1889,14 +1942,16 @@ function applySelectedFile(file, targetId) {
 
   const prefix = targetId === 'upload-name' ? 'sample' : 'beat';
   const sizeMb = (file.size / (1024*1024)).toFixed(1);
-  document.getElementById(prefix+'-dropzone-icon').textContent = '✅';
+  document.getElementById(prefix+'-dropzone-icon').style.cssText = 'font-size:22px;color:var(--accent)';
+  document.getElementById(prefix+'-dropzone-icon').textContent = '✓';
   document.getElementById(prefix+'-dropzone-text').textContent = file.name;
   document.getElementById(prefix+'-dropzone-sub').textContent = `${sizeMb} MB — attached. Click to choose a different file.`;
   document.getElementById(prefix+'-dropzone').style.borderColor = 'var(--accent)';
 }
 
 function resetDropzoneVisual(prefix, icon, text, sub) {
-  document.getElementById(prefix+'-dropzone-icon').textContent = icon;
+  document.getElementById(prefix+'-dropzone-icon').innerHTML = icon;
+  document.getElementById(prefix+'-dropzone-icon').style.cssText = 'width:26px;height:26px;margin:0 auto 8px;color:var(--text2)';
   document.getElementById(prefix+'-dropzone-text').textContent = text;
   document.getElementById(prefix+'-dropzone-sub').textContent = sub;
   document.getElementById(prefix+'-dropzone').style.borderColor = '';
@@ -1960,7 +2015,8 @@ function resetCoverDropzone() {
   img.style.display = 'none';
   img.src = '';
   document.getElementById('beat-cover-dropzone-icon').style.display = '';
-  document.getElementById('beat-cover-dropzone-icon').textContent = '🖼️';
+  document.getElementById('beat-cover-dropzone-icon').style.cssText = 'width:20px;height:20px;margin:0 auto 6px;color:var(--text2)';
+  document.getElementById('beat-cover-dropzone-icon').innerHTML = ICON_IMAGE;
   document.getElementById('beat-cover-dropzone-text').textContent = 'Drop cover art here (optional)';
   document.getElementById('beat-cover-dropzone-sub').textContent = 'JPG, PNG — square works best, max 5MB';
   document.getElementById('beat-cover-dropzone').style.borderColor = '';
@@ -2211,7 +2267,7 @@ async function submitBeat() {
     key: document.getElementById('beat-key').value||'—',
     genre: document.getElementById('beat-genre').value,
     price, tags: document.getElementById('beat-tags').value.split(',').map(t=>t.trim()).filter(Boolean),
-    sold:false, isFree: beatListingIsFree, sellerWallet: walletAddress, emoji:'🎵', color:'#1a1a2e', file_url:'', preview_url:'', cover_url:''
+    sold:false, isFree: beatListingIsFree, sellerWallet: walletAddress, color:'#1a1a2e', file_url:'', preview_url:'', cover_url:''
   };
   const originalText = btn.textContent;
   btn.disabled = true;
@@ -2841,7 +2897,7 @@ async function loadSamplesFromDB() {
         bpm: s.bpm || 0, key: s.key || '—', dur: '—',
         tags: s.tags ? s.tags.split(',').map(t => t.trim()) : [],
         pro: s.is_premium || false, genre: s.genre || 'trap',
-        file_url: s.file_url, preview_url: s.preview_url || null
+        file_url: s.file_url, preview_url: s.preview_url || null, createdAt: s.created_at
       }));
       SAMPLES.length = 0;
       dbSamples.forEach(s => SAMPLES.push(s));
@@ -2866,7 +2922,7 @@ async function loadBeatsFromDB() {
         buyerWallet: b.buyer_wallet || null,
         soldTo: b.buyer_wallet ? shortAddr(b.buyer_wallet) : null,
         sellerWallet: b.seller_wallet || null,
-        emoji: '🎵', color: '#1a1a2e', file_url: b.file_url, preview_url: b.preview_url || null, cover_url: b.cover_url || null, isFree: b.is_free || false, playCount: b.play_count || 0
+        color: '#1a1a2e', file_url: b.file_url, preview_url: b.preview_url || null, cover_url: b.cover_url || null, isFree: b.is_free || false, playCount: b.play_count || 0, createdAt: b.created_at
       }));
       BEATS.length = 0;
       dbBeats.forEach(b => BEATS.push(b));
