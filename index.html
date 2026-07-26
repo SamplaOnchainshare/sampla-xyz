@@ -2752,13 +2752,19 @@ async function confirmEditBeat() {
   const newTags = document.getElementById('edit-beat-tags').value.split(',').map(t => t.trim()).filter(Boolean);
   if (!newTitle) { alert('Title cannot be empty'); return; }
   if (!newFree && newPrice < 1) { alert('Set a price in $SAMPLA, or mark the beat as free'); return; }
-  // Update Supabase — uses the real Auth session so RLS can verify ownership
+  // Update Supabase — uses the real Auth session so RLS can verify ownership.
+  // .select() is required here: without it, Supabase silently returns no error
+  // even when RLS blocks every row, making a failed save look "successful".
   try {
-    const { error } = await supabaseClient.from('beats').update({
+    const { data, error } = await supabaseClient.from('beats').update({
       title: newTitle, bpm: newBpm, key: newKey, genre: newGenre,
       tags: newTags.join(','), price: newPrice, is_free: newFree
-    }).eq('id', id);
+    }).eq('id', id).select();
     if (error) throw error;
+    if (!data || data.length === 0) {
+      alert("Update didn't save — the server rejected the change (likely a permissions issue). Nothing was modified.");
+      return;
+    }
   } catch(e) {
     console.log('DB update error:', e.message);
     alert('Update failed: ' + e.message);
@@ -2781,12 +2787,18 @@ async function confirmEdit() {
   const newKey = document.getElementById('edit-key').value.trim() || '—';
   const newTags = document.getElementById('edit-tags').value.split(',').map(t => t.trim()).filter(Boolean);
   if (!newName) { alert('Name cannot be empty'); return; }
-  // Update Supabase — uses the real Auth session so RLS can verify ownership
+  // Update Supabase — uses the real Auth session so RLS can verify ownership.
+  // .select() is required here: without it, Supabase silently returns no error
+  // even when RLS blocks every row, making a failed save look "successful".
   try {
-    const { error } = await supabaseClient.from('samples').update({
+    const { data, error } = await supabaseClient.from('samples').update({
       title: newName, bpm: newBpm, key: newKey, tags: newTags.join(',')
-    }).eq('id', id);
+    }).eq('id', id).select();
     if (error) throw error;
+    if (!data || data.length === 0) {
+      alert("Update didn't save — the server rejected the change (likely a permissions issue). Nothing was modified.");
+      return;
+    }
   } catch(e) {
     console.log('DB update error:', e.message);
     alert('Update failed: ' + e.message);
