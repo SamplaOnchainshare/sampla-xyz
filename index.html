@@ -116,6 +116,10 @@
 
   /* Beat marketplace cards */
   .beats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+  .artists-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; }
+  .artist-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 22px 18px; text-align: center; transition: border-color 0.15s; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .artist-card:hover { border-color: var(--border2); }
+  .artist-card-stats { font-size: 12px; color: var(--text3); margin-bottom: 10px; }
   .beat-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; transition: border-color 0.15s; }
   .beat-card:hover { border-color: var(--border2); }
   .beat-card.sold { opacity: 0.6; }
@@ -444,7 +448,7 @@
               <div class="page-sub">Every creator selling samples or beats on Sampla</div>
             </div>
           </div>
-          <div id="artists-directory-grid" style="display:flex;flex-direction:column;gap:10px"></div>
+          <div class="artists-grid" id="artists-directory-grid"></div>
         </div>
       </div>
 
@@ -560,12 +564,12 @@
 
           <div id="profile-tab-following" style="display:none">
             <div style="font-size:13px;color:var(--text2);margin-bottom:16px">Artists and profiles you follow</div>
-            <div id="following-grid" style="display:flex;flex-direction:column;gap:8px"></div>
+            <div class="artists-grid" id="following-grid"></div>
           </div>
 
           <div id="profile-tab-followers" style="display:none">
             <div style="font-size:13px;color:var(--text2);margin-bottom:16px">People who follow you</div>
-            <div id="followers-grid" style="display:flex;flex-direction:column;gap:8px"></div>
+            <div class="artists-grid" id="followers-grid"></div>
           </div>
         </div>
       </div>
@@ -1686,6 +1690,24 @@ async function toggleFollow(shortWallet) {
 }
 
 // Renders the "Following" tab on My Profile — everyone the connected wallet follows
+// Shared artist card, reused by the Artists directory, Following, and
+// Followers tabs — each just passes its own action button (Follow /
+// Unfollow / Follow back / nothing), so the three lists stay visually
+// consistent instead of drifting into separate one-off layouts.
+function artistCardHTML(shortWallet, actionHtml) {
+  const p = profilesByShortWallet[shortWallet];
+  const name = (p && p.display_name) || shortWallet;
+  const sampleCount = SAMPLES.filter(s=>s.artist===shortWallet).length;
+  const beatCount = BEATS.filter(b=>b.artist===shortWallet).length;
+  const followers = followerCount(shortWallet);
+  return `<div class="artist-card" onclick="viewArtistProfile('${shortWallet}')">
+    <span class="avatar" style="width:64px;height:64px;font-size:24px">${avatarHTML(p, shortWallet)}</span>
+    <div style="font-weight:700;font-size:15px;margin-top:6px">${name}</div>
+    <div class="artist-card-stats">${sampleCount} sample${sampleCount!==1?'s':''} · ${beatCount} beat${beatCount!==1?'s':''} · ${followers} follower${followers!==1?'s':''}</div>
+    ${actionHtml}
+  </div>`;
+}
+
 function renderMyFollowing() {
   const grid = document.getElementById('following-grid');
   if (!grid) return;
@@ -1694,17 +1716,9 @@ function renderMyFollowing() {
     grid.innerHTML = `<div style="color:var(--text3);font-size:13px;padding:20px 0">Not following anyone yet — check out the Artists page!</div>`;
     return;
   }
-  grid.innerHTML = list.map(shortWallet => {
-    const p = profilesByShortWallet[shortWallet];
-    const name = (p && p.display_name) || shortWallet;
-    return `<div class="wallet-option-btn" style="justify-content:flex-start">
-      <span class="avatar" style="width:36px;height:36px;font-size:14px;flex-shrink:0;cursor:pointer" onclick="viewArtistProfile('${shortWallet}')">${avatarHTML(p, shortWallet)}</span>
-      <span style="flex:1;cursor:pointer" onclick="viewArtistProfile('${shortWallet}')">
-        <div style="font-weight:700">${name}</div>
-      </span>
-      <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();toggleFollow('${shortWallet}')">Unfollow</button>
-    </div>`;
-  }).join('');
+  grid.innerHTML = list.map(shortWallet => artistCardHTML(shortWallet,
+    `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();toggleFollow('${shortWallet}')">Unfollow</button>`
+  )).join('');
 }
 
 // Renders the "Followers" tab on My Profile — everyone following the connected wallet
@@ -1718,18 +1732,11 @@ function renderMyFollowers() {
     return;
   }
   grid.innerHTML = list.map(shortWallet => {
-    const p = profilesByShortWallet[shortWallet];
-    const name = (p && p.display_name) || shortWallet;
     const alreadyFollowing = followingSet.has(shortWallet);
-    return `<div class="wallet-option-btn" style="justify-content:flex-start">
-      <span class="avatar" style="width:36px;height:36px;font-size:14px;flex-shrink:0;cursor:pointer" onclick="viewArtistProfile('${shortWallet}')">${avatarHTML(p, shortWallet)}</span>
-      <span style="flex:1;cursor:pointer" onclick="viewArtistProfile('${shortWallet}')">
-        <div style="font-weight:700">${name}</div>
-      </span>
-      ${alreadyFollowing
-        ? `<span style="font-size:12px;color:var(--text3)">Following</span>`
-        : `<button class="btn btn-accent btn-sm" onclick="event.stopPropagation();toggleFollow('${shortWallet}')">Follow back</button>`}
-    </div>`;
+    const action = alreadyFollowing
+      ? `<span style="font-size:12px;color:var(--text3)">Following</span>`
+      : `<button class="btn btn-accent btn-sm" onclick="event.stopPropagation();toggleFollow('${shortWallet}')">Follow back</button>`;
+    return artistCardHTML(shortWallet, action);
   }).join('');
 }
 
@@ -1866,20 +1873,7 @@ function renderArtistsDirectory() {
     grid.innerHTML = `<div class="empty-state"><div class="empty-state-icon" style="width:32px;height:32px;margin:0 auto 12px;color:var(--text3)">${ICON_MIC}</div><div class="empty-state-text">No artists yet</div></div>`;
     return;
   }
-  grid.innerHTML = list.map(shortWallet => {
-    const p = profilesByShortWallet[shortWallet];
-    const name = (p && p.display_name) || shortWallet;
-    const sampleCount = SAMPLES.filter(s=>s.artist===shortWallet).length;
-    const beatCount = BEATS.filter(b=>b.artist===shortWallet).length;
-    const followers = followerCount(shortWallet);
-    return `<div class="wallet-option-btn" onclick="viewArtistProfile('${shortWallet}')" style="justify-content:flex-start">
-      <span class="avatar" style="width:40px;height:40px;font-size:16px;flex-shrink:0">${avatarHTML(p, shortWallet)}</span>
-      <span style="flex:1">
-        <div style="font-weight:700">${name}</div>
-        <div style="font-size:12px;color:var(--text3);font-weight:400">${sampleCount} sample${sampleCount!==1?'s':''} · ${beatCount} beat${beatCount!==1?'s':''} · ${followers} follower${followers!==1?'s':''}</div>
-      </span>
-    </div>`;
-  }).join('');
+  grid.innerHTML = list.map(shortWallet => artistCardHTML(shortWallet, '')).join('');
 }
 
 function showPage(page,el) {
