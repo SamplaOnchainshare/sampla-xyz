@@ -1938,8 +1938,8 @@ function showPage(page,el) {
   document.querySelectorAll('.sidebar-item').forEach(i=>i.classList.remove('active'));
   if(el) el.classList.add('active');
   const btn = document.getElementById('upload-btn');
-  btn.textContent = page==='beats' ? '+ List beat' : '+ Upload';
-  btn.onclick = page==='beats' ? showBeatUpload : showUploadForPage;
+  btn.textContent = page==='samples' ? '+ Upload sample' : '+ List beat';
+  btn.onclick = page==='samples' ? showUpload : showBeatUpload;
   if(page==='beats') renderBeats();
   if(page==='profile'){renderSamples();renderBeats();updateStats();updateProfileTabVisibility();}
   if(page==='trending') loadTrendingFeed();
