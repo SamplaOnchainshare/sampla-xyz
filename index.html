@@ -1360,14 +1360,29 @@ async function shareBeat(id) {
     try { await navigator.share({ title: shareText, url }); return; }
     catch(e) { if (e.name === 'AbortError') return; }
   }
-  openShareModal(url, shareText);
+  openShareModal(url, shareText, 'Share this beat');
 }
 
-// Generic share modal — used from shareBeat() (and reusable for samples
-// later). Wires up proper share-intent URLs for each platform instead of
-// only offering a bare clipboard copy.
-function openShareModal(url, text) {
-  document.getElementById('share-modal-title').textContent = 'Share this beat';
+// Shares a link straight to an artist's public profile (?artist=shortWallet,
+// resolved by handleArtistDeepLink() on load).
+async function shareArtist(shortWallet) {
+  const url = `${location.origin}${location.pathname}?artist=${shortWallet}`;
+  const p = profilesByShortWallet[shortWallet];
+  const name = (p && p.display_name) || shortWallet;
+  const shareText = `${name} on Sampla`;
+  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  if (isMobile && navigator.share) {
+    try { await navigator.share({ title: shareText, url }); return; }
+    catch(e) { if (e.name === 'AbortError') return; }
+  }
+  openShareModal(url, shareText, 'Share this artist');
+}
+
+// Generic share modal — used from shareBeat()/shareArtist() (and reusable
+// for samples later). Wires up proper share-intent URLs for each platform
+// instead of only offering a bare clipboard copy.
+function openShareModal(url, text, title) {
+  document.getElementById('share-modal-title').textContent = title || 'Share';
   document.getElementById('share-modal-link').value = url;
   const enc = encodeURIComponent;
   document.getElementById('share-x-btn').onclick = () => window.open(`https://twitter.com/intent/tweet?text=${enc(text)}&url=${enc(url)}`, '_blank');
@@ -1704,6 +1719,9 @@ function artistCardHTML(shortWallet, actionHtml) {
     <span class="avatar" style="width:64px;height:64px;font-size:24px">${avatarHTML(p, shortWallet)}</span>
     <div style="font-weight:700;font-size:15px;margin-top:6px">${name}</div>
     <div class="artist-card-stats">${sampleCount} sample${sampleCount!==1?'s':''} · ${beatCount} beat${beatCount!==1?'s':''} · ${followers} follower${followers!==1?'s':''}</div>
+    <button class="tag" style="cursor:pointer;display:flex;align-items:center;gap:4px;background:none;border:1px solid var(--border);color:var(--text3);margin-bottom:${actionHtml?'10px':'0'}" onclick="event.stopPropagation();shareArtist('${shortWallet}')" title="Share">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="10.5" x2="15.4" y2="6.5"/><line x1="8.6" y1="13.5" x2="15.4" y2="17.5"/></svg>Share
+    </button>
     ${actionHtml}
   </div>`;
 }
@@ -3355,7 +3373,17 @@ window.addEventListener('load', async () => {
   loadAllProfiles();
   loadAllFollows();
   handleBeatDeepLink();
+  handleArtistDeepLink();
 });
+
+// Jumps straight to an artist's public profile when the page is opened via
+// a shared link like sampla.xyz/?artist=Ab3x...9fQ2 (see shareArtist()).
+function handleArtistDeepLink() {
+  const params = new URLSearchParams(location.search);
+  const artistWallet = params.get('artist');
+  if (!artistWallet) return;
+  viewArtistProfile(artistWallet);
+}
 
 // Jumps to the Beat Market and highlights a specific beat when the page is
 // opened via a shared link like sampla.xyz/?beat=123 (see shareBeat()).
