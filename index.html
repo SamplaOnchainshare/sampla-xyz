@@ -3371,7 +3371,7 @@ window.addEventListener('load', async () => {
   updateStats();
   await Promise.all([loadSamplesFromDB(), loadBeatsFromDB()]);
   await loadAllProfiles();
-  loadAllFollows();
+  await loadAllFollows();
   handleBeatDeepLink();
   handleArtistDeepLink();
 });
