@@ -117,11 +117,12 @@
   /* Beat marketplace cards */
   .beats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
   .artists-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; }
-  .trending-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
-  .trending-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; cursor: pointer; transition: border-color 0.15s; }
+  .trending-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; align-items: stretch; }
+  .trending-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; cursor: pointer; transition: border-color 0.15s; display: flex; flex-direction: column; height: 100%; }
   .trending-card:hover { border-color: var(--border2); }
-  .trending-card-cover { height: 120px; background: var(--bg3); display: flex; align-items: center; justify-content: center; position: relative; }
-  .trending-card-body { padding: 12px 14px; }
+  .trending-card-cover { height: 120px; background: var(--bg3); display: flex; align-items: center; justify-content: center; position: relative; flex-shrink: 0; }
+  .trending-card-body { padding: 12px 14px; display: flex; flex-direction: column; flex: 1; }
+  .trending-card-footer { margin-top: auto; }
   .artist-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 22px 18px; text-align: center; transition: border-color 0.15s; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 4px; }
   .artist-card:hover { border-color: var(--border2); }
   .artist-card-stats { font-size: 12px; color: var(--text3); margin-bottom: 10px; }
@@ -1578,8 +1579,10 @@ async function loadTrendingFeed() {
                   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="10.5" x2="15.4" y2="6.5"/><line x1="8.6" y1="13.5" x2="15.4" y2="17.5"/></svg>Share
                 </button>
               </div>` : ''}
-              ${(isBeat && !item.isFree) ? `<div class="beat-fee-note">Platform fee 3.3% · Creator gets ${Math.round(item.price*(1-FEE)).toLocaleString()} $SAMPLA</div>` : ''}
-              <div style="font-size:11px;color:var(--text3);margin-top:6px">${new Date(item.createdAt).toLocaleDateString()}</div>
+              <div class="trending-card-footer">
+                ${(isBeat && !item.isFree) ? `<div class="beat-fee-note" style="margin-top:0;padding-top:8px">Platform fee 3.3% · Creator gets ${Math.round(item.price*(1-FEE)).toLocaleString()} $SAMPLA</div>` : ''}
+                <div style="font-size:11px;color:var(--text3);margin-top:6px">${new Date(item.createdAt).toLocaleDateString()}</div>
+              </div>
             </div>
           </div>`;
         }).join('')
@@ -1604,8 +1607,10 @@ async function loadTrendingFeed() {
             <div class="trending-card-body">
               <div style="font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${d.sample_title || 'Untitled sample'}</div>
               <div style="font-size:12px;color:var(--text2);margin-bottom:8px">${d.sample_artist || ''}</div>
-              <div style="font-size:11px;color:var(--text3)">downloaded by ${shortAddr(d.wallet_address)}</div>
-              <div style="font-size:11px;color:var(--text3);margin-top:2px">${new Date(d.downloaded_at).toLocaleDateString()}</div>
+              <div class="trending-card-footer">
+                <div style="font-size:11px;color:var(--text3)">downloaded by ${shortAddr(d.wallet_address)}</div>
+                <div style="font-size:11px;color:var(--text3);margin-top:2px">${new Date(d.downloaded_at).toLocaleDateString()}</div>
+              </div>
             </div>
           </div>`).join('')
         : `<div style="color:var(--text3);font-size:13px;padding:20px 0">No downloads yet — be the first!</div>`;
