@@ -1550,14 +1550,15 @@ async function loadTrendingFeed() {
     freshGrid.innerHTML = freshItems.length
       ? freshItems.map(({type, item}) => {
           const isBeat = type === 'beat';
-          const title = isBeat ? item.title : item.name;
-          const priceTag = isBeat
-            ? (item.isFree ? `<span class="tag" style="color:var(--accent)">Free</span>` : `<span class="tag" style="color:var(--accent)">${item.price.toLocaleString()} $SAMPLA</span>`)
-            : `<span class="tag">Sample</span>`;
-          const playAction = isBeat ? `playBeat(${item.id})` : `playSample(${item.id})`;
-          const coverHtml = (isBeat && item.cover_url)
-            ? `<img src="${item.cover_url}" style="width:100%;height:100%;object-fit:cover" alt="">`
-            : `<span style="width:32px;height:32px;color:var(--text3)">${ICON_MUSIC}</span>`;
+          if (isBeat) {
+            // Beats in Fresh uploads now render with the exact same card
+            // used on the Beat Market page (cover, big price, Buy beat
+            // button) so the two pages look consistent for beats.
+            return beatCardHTML(item);
+          }
+          const title = item.name;
+          const playAction = `playSample(${item.id})`;
+          const coverHtml = `<span style="width:32px;height:32px;color:var(--text3)">${ICON_MUSIC}</span>`;
           return `<div class="trending-card" onclick="${playAction}">
             <div class="trending-card-cover">
               ${coverHtml}
@@ -1567,20 +1568,10 @@ async function loadTrendingFeed() {
               <div style="font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${title}</div>
               <div style="font-size:12px;color:var(--text2);margin-bottom:8px">${displayArtistName(item.artist)}</div>
               <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:8px">
-                <span class="badge ${isBeat?'badge-nft':''}" style="font-size:10px">${isBeat?'Beat':'Sample'}</span>
-                ${priceTag}
+                <span class="badge" style="font-size:10px">Sample</span>
+                <span class="tag">Sample</span>
               </div>
-              ${isBeat ? `<div class="beat-meta">
-                <span class="tag" style="display:flex;align-items:center;gap:4px;color:var(--text3)" title="Plays"><svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>${(item.playCount||0).toLocaleString()}</span>
-                <button class="tag" style="cursor:pointer;display:flex;align-items:center;gap:4px;background:none;border:1px solid var(--border);color:${myFavorites.includes(item.id)?'var(--accent)':'var(--text3)'}" onclick="event.stopPropagation();toggleFavorite(${item.id})" title="${myFavorites.includes(item.id)?'Remove from favorites':'Save to favorites'}">
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="${myFavorites.includes(item.id)?'currentColor':'none'}" stroke="currentColor" stroke-width="1.6"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z"/></svg>
-                </button>
-                <button class="tag" style="cursor:pointer;display:flex;align-items:center;gap:4px;background:none;border:1px solid var(--border);color:var(--text3)" onclick="event.stopPropagation();shareBeat(${item.id})" title="Share">
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="10.5" x2="15.4" y2="6.5"/><line x1="8.6" y1="13.5" x2="15.4" y2="17.5"/></svg>Share
-                </button>
-              </div>` : ''}
               <div class="trending-card-footer">
-                ${(isBeat && !item.isFree) ? `<div class="beat-fee-note" style="margin-top:0;padding-top:8px">Platform fee 3.3% · Creator gets ${Math.round(item.price*(1-FEE)).toLocaleString()} $SAMPLA</div>` : ''}
                 <div style="font-size:11px;color:var(--text3);margin-top:6px">${new Date(item.createdAt).toLocaleDateString()}</div>
               </div>
             </div>
