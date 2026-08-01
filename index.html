@@ -510,7 +510,10 @@
                 <div class="profile-stat"><strong id="profile-followers-stat">0</strong> followers</div>
               </div>
             </div>
-            <button class="btn btn-ghost btn-sm" style="margin-left:auto" onclick="openProfileEditModal()">Edit profile</button>
+            <div style="margin-left:auto;display:flex;gap:8px">
+              <button class="btn btn-ghost btn-sm" onclick="shareArtist(shortAddr(walletAddress))">Share</button>
+              <button class="btn btn-ghost btn-sm" onclick="openProfileEditModal()">Edit profile</button>
+            </div>
           </div>
           <div class="sampla-balance">
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#c8ff00" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
