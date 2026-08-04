@@ -3287,21 +3287,44 @@ function selectAvatarEmoji(emoji) {
   updateAvatarPreview();
 }
 
+const AVATAR_MIN_DIMENSION = 256; // px — keeps every avatar large enough to work as a full-size social share image (Facebook/X reject images under ~200x200)
+
 function handleAvatarFileSelect(input) {
   const file = input.files[0];
   if (!file) return;
   if (file.size > 3 * 1024 * 1024) { alert('Image too large — max 3MB.'); input.value = ''; return; }
   if (!file.type.startsWith('image/')) { alert('Please choose an image file.'); input.value = ''; return; }
-  pendingAvatarFile = file;
-  pendingAvatarEmoji = null;
-  pendingAvatarUrl = null;
-  const reader = new FileReader();
-  reader.onload = () => {
-    pendingAvatarPreviewDataUrl = reader.result;
-    updateAvatarPreview();
+
+  // Check actual pixel dimensions before accepting the file — a too-small
+  // avatar looks fine in the tiny profile circle here, but breaks when
+  // it's later used as the full-size image on a shared social card.
+  const objectUrl = URL.createObjectURL(file);
+  const probe = new Image();
+  probe.onload = () => {
+    const { naturalWidth: w, naturalHeight: h } = probe;
+    URL.revokeObjectURL(objectUrl);
+    if (w < AVATAR_MIN_DIMENSION || h < AVATAR_MIN_DIMENSION) {
+      alert(`This image is too small (${w}×${h}px). Please choose a photo at least ${AVATAR_MIN_DIMENSION}×${AVATAR_MIN_DIMENSION}px — it looks better everywhere, including when your profile is shared.`);
+      input.value = '';
+      return;
+    }
+    pendingAvatarFile = file;
+    pendingAvatarEmoji = null;
+    pendingAvatarUrl = null;
+    const reader = new FileReader();
+    reader.onload = () => {
+      pendingAvatarPreviewDataUrl = reader.result;
+      updateAvatarPreview();
+    };
+    reader.readAsDataURL(file);
+    renderEmojiGrid();
   };
-  reader.readAsDataURL(file);
-  renderEmojiGrid();
+  probe.onerror = () => {
+    URL.revokeObjectURL(objectUrl);
+    alert('Could not read that image — please try a different file.');
+    input.value = '';
+  };
+  probe.src = objectUrl;
 }
 
 function clearAvatarSelection() {
