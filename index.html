@@ -184,8 +184,9 @@
   .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
 
   /* Beat comments */
-  .comment-item { display: flex; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); }
-  .comment-item:last-child { border-bottom: none; }
+  .comment-item { display: flex; gap: 10px; padding: 10px 0; }
+  .comment-thread { border-bottom: 1px solid var(--border); padding-bottom: 4px; margin-bottom: 6px; }
+  .comment-thread:last-child { border-bottom: none; }
   .comment-avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--bg3); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0; overflow: hidden; cursor: pointer; }
   .comment-avatar img { width: 100%; height: 100%; object-fit: cover; }
   .comment-body { flex: 1; min-width: 0; }
@@ -200,6 +201,7 @@
   .comment-reply-btn { font-size: 11px; color: var(--text3); cursor: pointer; }
   .comment-reply-btn:hover { color: var(--accent); }
   .comment-replies { margin-top: 10px; padding-left: 14px; border-left: 2px solid var(--border); display: flex; flex-direction: column; gap: 10px; }
+  .comment-reply-to { font-size: 10.5px; color: var(--text3); margin-bottom: 2px; }
   .comment-reply-input-row { display: flex; gap: 8px; margin-top: 8px; }
   .comment-reply-input-row textarea { flex: 1; resize: none; height: 32px; background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 12.5px; padding: 7px 9px; font-family: var(--font); outline: none; }
   .comment-reply-input-row textarea:focus { border-color: var(--accent); }
@@ -1841,7 +1843,7 @@ function openBeatComments(beatId) {
 // `canModerate` = the connected wallet is the beat's own artist, who may
 // delete any comment on their beat to defend against abuse; a comment's own
 // author can always delete their own regardless of whose beat it's on.
-function commentItemHTML(c, canModerate, isReply) {
+function commentItemHTML(c, canModerate, isReply, replyToName) {
   const short = c.wallet_address ? shortAddr(c.wallet_address) : null;
   const p = short ? profilesByShortWallet[short] : null;
   const name = (p && p.display_name) || short || 'Someone';
@@ -1851,6 +1853,7 @@ function commentItemHTML(c, canModerate, isReply) {
   return `<div class="comment-item">
     <span class="comment-avatar" ${clickAttr}>${short ? avatarHTML(p, short) : '—'}</span>
     <div class="comment-body">
+      ${isReply && replyToName ? `<div class="comment-reply-to">↳ replying to ${escapeHTML(replyToName)}</div>` : ''}
       <div class="comment-head">
         <span class="comment-name" ${clickAttr}>${escapeHTML(name)}</span>
         <span class="comment-time">${notifTimeAgo(tsToMs(c.created_at))}</span>
@@ -1892,18 +1895,35 @@ async function renderBeatCommentsList() {
     const myShort = walletAddress ? shortAddr(walletAddress) : null;
     const canModerate = !!(beat && myShort && beat.artist === myShort);
 
-    const topLevel = rows.filter(c => !c.parent_id).sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+    // Only one level of nesting is supported. A comment counts as a reply
+    // only if its parent_id points at an actual top-level comment in this
+    // same thread — if a parent is missing for any reason (deleted, data
+    // inconsistency), the comment falls back to rendering as top-level
+    // instead of silently vanishing or attaching to the wrong thread.
+    let topLevel = rows.filter(c => !c.parent_id);
+    const topLevelIds = new Set(topLevel.map(c => String(c.id)));
+    const candidateReplies = rows.filter(c => c.parent_id);
+    const orphaned = candidateReplies.filter(c => !topLevelIds.has(String(c.parent_id)));
+    topLevel = [...topLevel, ...orphaned].sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+
     const repliesByParent = {};
-    rows.filter(c => c.parent_id).forEach(c => {
+    candidateReplies.filter(c => topLevelIds.has(String(c.parent_id))).forEach(c => {
       (repliesByParent[c.parent_id] = repliesByParent[c.parent_id] || []).push(c);
     });
 
+    const nameFor = (c) => {
+      const s = c.wallet_address ? shortAddr(c.wallet_address) : null;
+      const p = s ? profilesByShortWallet[s] : null;
+      return (p && p.display_name) || s || 'Someone';
+    };
+
     list.innerHTML = topLevel.map(c => {
       const replies = (repliesByParent[c.id] || []);
+      const parentName = nameFor(c);
       const repliesHTML = replies.length
-        ? `<div class="comment-replies">${replies.map(r => commentItemHTML(r, canModerate, true)).join('')}</div>`
+        ? `<div class="comment-replies">${replies.map(r => commentItemHTML(r, canModerate, true, parentName)).join('')}</div>`
         : '';
-      return commentItemHTML(c, canModerate, false) + repliesHTML;
+      return `<div class="comment-thread">${commentItemHTML(c, canModerate, false)}${repliesHTML}</div>`;
     }).join('');
   } catch(e) {
     list.innerHTML = `<div class="comment-empty">Couldn't load comments (${e.message}).</div>`;
@@ -2360,6 +2380,9 @@ function toggleNotifDropdown(forceClose) {
   } else {
     dropdown.classList.add('open');
     setTimeout(() => document.addEventListener('click', closeNotifDropdownOnOutsideClick), 0);
+    // Refresh right away instead of waiting for the next 60s poll tick, so
+    // opening the bell always shows the latest activity.
+    loadNotifications();
     // Give the person a moment to actually see the badge count before it clears.
     setTimeout(() => { markAllNotifsSeen(); renderNotifications(); }, 1200);
   }
