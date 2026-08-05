@@ -525,10 +525,10 @@
             <div class="samples-grid" id="artist-samples-grid"></div>
           </div>
           <div id="artist-tab-following" style="display:none">
-            <div id="artist-following-grid" style="display:flex;flex-direction:column;gap:8px"></div>
+            <div class="artists-grid" id="artist-following-grid"></div>
           </div>
           <div id="artist-tab-followers" style="display:none">
-            <div id="artist-followers-grid" style="display:flex;flex-direction:column;gap:8px"></div>
+            <div class="artists-grid" id="artist-followers-grid"></div>
           </div>
         </div>
       </div>
@@ -1780,6 +1780,23 @@ function artistCardHTML(shortWallet, actionHtml) {
   </div>`;
 }
 
+// Shared follow/unfollow action button for artist cards — used by My Profile's
+// Following/Followers tabs AND any other artist's public Following/Followers
+// tabs, so the action logic and labels stay identical everywhere a follow
+// relationship is shown. `followBackLabel` swaps "Follow" for "Follow back"
+// for contexts where the listed person already follows the viewer (My
+// Profile's Followers tab); elsewhere plain "Follow" is correct since there's
+// no guarantee of a reverse relationship.
+function followActionHTML(shortWallet, followBackLabel) {
+  const myShort = walletAddress ? shortAddr(walletAddress) : null;
+  if (!myShort || myShort === shortWallet) return '';
+  const isFollowing = followingSet.has(shortWallet);
+  if (isFollowing) {
+    return `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();toggleFollow('${shortWallet}')">Unfollow</button>`;
+  }
+  return `<button class="btn btn-accent btn-sm" onclick="event.stopPropagation();toggleFollow('${shortWallet}')">${followBackLabel ? 'Follow back' : 'Follow'}</button>`;
+}
+
 function renderMyFollowing() {
   const grid = document.getElementById('following-grid');
   if (!grid) return;
@@ -1788,9 +1805,7 @@ function renderMyFollowing() {
     grid.innerHTML = `<div style="color:var(--text3);font-size:13px;padding:20px 0">Not following anyone yet — check out the Artists page!</div>`;
     return;
   }
-  grid.innerHTML = list.map(shortWallet => artistCardHTML(shortWallet,
-    `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();toggleFollow('${shortWallet}')">Unfollow</button>`
-  )).join('');
+  grid.innerHTML = list.map(shortWallet => artistCardHTML(shortWallet, followActionHTML(shortWallet))).join('');
 }
 
 // Renders the "Followers" tab on My Profile — everyone following the connected wallet
@@ -1803,13 +1818,7 @@ function renderMyFollowers() {
     grid.innerHTML = `<div style="color:var(--text3);font-size:13px;padding:20px 0">No followers yet.</div>`;
     return;
   }
-  grid.innerHTML = list.map(shortWallet => {
-    const alreadyFollowing = followingSet.has(shortWallet);
-    const action = alreadyFollowing
-      ? `<span style="font-size:12px;color:var(--text3)">Following</span>`
-      : `<button class="btn btn-accent btn-sm" onclick="event.stopPropagation();toggleFollow('${shortWallet}')">Follow back</button>`;
-    return artistCardHTML(shortWallet, action);
-  }).join('');
+  grid.innerHTML = list.map(shortWallet => artistCardHTML(shortWallet, followActionHTML(shortWallet, true))).join('');
 }
 
 // Opens a read-only public profile for any creator — reachable by clicking
@@ -1897,27 +1906,13 @@ function renderArtistProfile() {
   const followingGrid = document.getElementById('artist-following-grid');
   const theirFollowing = allFollows.filter(f => f.follower_wallet === shortWallet).map(f => f.following_wallet);
   followingGrid.innerHTML = theirFollowing.length
-    ? theirFollowing.map(w => {
-        const fp = profilesByShortWallet[w];
-        const fname = (fp && fp.display_name) || w;
-        return `<div class="wallet-option-btn" onclick="viewArtistProfile('${w}')" style="justify-content:flex-start">
-          <span class="avatar" style="width:36px;height:36px;font-size:14px;flex-shrink:0">${avatarHTML(fp, w)}</span>
-          <span style="font-weight:700">${fname}</span>
-        </div>`;
-      }).join('')
+    ? theirFollowing.map(w => artistCardHTML(w, followActionHTML(w))).join('')
     : `<div style="color:var(--text3);font-size:13px;padding:20px 0">Not following anyone yet.</div>`;
 
   const followersGrid = document.getElementById('artist-followers-grid');
   const theirFollowers = allFollows.filter(f => f.following_wallet === shortWallet).map(f => f.follower_wallet);
   followersGrid.innerHTML = theirFollowers.length
-    ? theirFollowers.map(w => {
-        const fp = profilesByShortWallet[w];
-        const fname = (fp && fp.display_name) || w;
-        return `<div class="wallet-option-btn" onclick="viewArtistProfile('${w}')" style="justify-content:flex-start">
-          <span class="avatar" style="width:36px;height:36px;font-size:14px;flex-shrink:0">${avatarHTML(fp, w)}</span>
-          <span style="font-weight:700">${fname}</span>
-        </div>`;
-      }).join('')
+    ? theirFollowers.map(w => artistCardHTML(w, followActionHTML(w))).join('')
     : `<div style="color:var(--text3);font-size:13px;padding:20px 0">No followers yet.</div>`;
 }
 
