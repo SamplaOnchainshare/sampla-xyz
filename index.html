@@ -1843,7 +1843,7 @@ function openBeatComments(beatId) {
 // `canModerate` = the connected wallet is the beat's own artist, who may
 // delete any comment on their beat to defend against abuse; a comment's own
 // author can always delete their own regardless of whose beat it's on.
-function commentItemHTML(c, canModerate, isReply, replyToName) {
+function commentItemHTML(c, canModerate, hasParent, replyToName) {
   const short = c.wallet_address ? shortAddr(c.wallet_address) : null;
   const p = short ? profilesByShortWallet[short] : null;
   const name = (p && p.display_name) || short || 'Someone';
@@ -1853,22 +1853,22 @@ function commentItemHTML(c, canModerate, isReply, replyToName) {
   return `<div class="comment-item">
     <span class="comment-avatar" ${clickAttr}>${short ? avatarHTML(p, short) : '—'}</span>
     <div class="comment-body">
-      ${isReply && replyToName ? `<div class="comment-reply-to">↳ replying to ${escapeHTML(replyToName)}</div>` : ''}
+      ${hasParent && replyToName ? `<div class="comment-reply-to">↳ replying to ${escapeHTML(replyToName)}</div>` : ''}
       <div class="comment-head">
         <span class="comment-name" ${clickAttr}>${escapeHTML(name)}</span>
         <span class="comment-time">${notifTimeAgo(tsToMs(c.created_at))}</span>
       </div>
       <div class="comment-text">${escapeHTML(c.body)}</div>
       <div class="comment-actions">
-        ${!isReply && walletConnected ? `<span class="comment-reply-btn" onclick="toggleReplyBox(${c.id})">Reply</span>` : ''}
+        ${walletConnected ? `<span class="comment-reply-btn" onclick="toggleReplyBox(${c.id})">Reply</span>` : ''}
         ${canDelete ? `<span class="comment-delete" onclick="deleteBeatComment(${c.id})">Delete</span>` : ''}
       </div>
-      ${!isReply ? `<div id="reply-box-${c.id}" style="display:none">
+      <div id="reply-box-${c.id}" style="display:none">
         <div class="comment-reply-input-row">
           <textarea id="reply-input-${c.id}" placeholder="Reply…" maxlength="500" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();submitBeatComment(${c.id});}"></textarea>
           <button class="btn btn-accent btn-sm" onclick="submitBeatComment(${c.id})">Post</button>
         </div>
-      </div>` : ''}
+      </div>
     </div>
   </div>`;
 }
@@ -1879,6 +1879,22 @@ function toggleReplyBox(commentId) {
   const opening = box.style.display === 'none';
   box.style.display = opening ? 'block' : 'none';
   if (opening) document.getElementById(`reply-input-${commentId}`)?.focus();
+}
+
+function commentAuthorName(c) {
+  const s = c.wallet_address ? shortAddr(c.wallet_address) : null;
+  const p = s ? profilesByShortWallet[s] : null;
+  return (p && p.display_name) || s || 'Someone';
+}
+
+// Renders a comment and all of its replies recursively — no depth limit,
+// so a reply can itself be replied to indefinitely (each level just nests
+// one step further under the last).
+function renderCommentNode(node, canModerate, hasParent, replyToName) {
+  const childrenHTML = node.children.length
+    ? `<div class="comment-replies">${node.children.map(ch => renderCommentNode(ch, canModerate, true, commentAuthorName(node))).join('')}</div>`
+    : '';
+  return commentItemHTML(node, canModerate, hasParent, replyToName) + childrenHTML;
 }
 
 async function renderBeatCommentsList() {
@@ -1895,36 +1911,26 @@ async function renderBeatCommentsList() {
     const myShort = walletAddress ? shortAddr(walletAddress) : null;
     const canModerate = !!(beat && myShort && beat.artist === myShort);
 
-    // Only one level of nesting is supported. A comment counts as a reply
-    // only if its parent_id points at an actual top-level comment in this
-    // same thread — if a parent is missing for any reason (deleted, data
-    // inconsistency), the comment falls back to rendering as top-level
-    // instead of silently vanishing or attaching to the wrong thread.
-    let topLevel = rows.filter(c => !c.parent_id);
-    const topLevelIds = new Set(topLevel.map(c => String(c.id)));
-    const candidateReplies = rows.filter(c => c.parent_id);
-    const orphaned = candidateReplies.filter(c => !topLevelIds.has(String(c.parent_id)));
-    topLevel = [...topLevel, ...orphaned].sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
-
-    const repliesByParent = {};
-    candidateReplies.filter(c => topLevelIds.has(String(c.parent_id))).forEach(c => {
-      (repliesByParent[c.parent_id] = repliesByParent[c.parent_id] || []).push(c);
+    // Build a full reply tree (any depth). A comment whose parent_id doesn't
+    // match anything in this thread (deleted parent, any data
+    // inconsistency) falls back to being a root instead of silently
+    // vanishing or attaching to the wrong node.
+    const byId = {};
+    rows.forEach(r => { byId[r.id] = { ...r, children: [] }; });
+    const roots = [];
+    Object.values(byId).forEach(node => {
+      const parent = node.parent_id != null ? byId[node.parent_id] : null;
+      if (parent) parent.children.push(node);
+      else roots.push(node);
     });
+    const byDateAsc = (a, b) => new Date(a.created_at) - new Date(b.created_at);
+    const sortRecursive = (node) => { node.children.sort(byDateAsc); node.children.forEach(sortRecursive); };
+    roots.sort((a, b) => new Date(b.created_at) - new Date(a.created_at)); // newest thread first
+    roots.forEach(sortRecursive);
 
-    const nameFor = (c) => {
-      const s = c.wallet_address ? shortAddr(c.wallet_address) : null;
-      const p = s ? profilesByShortWallet[s] : null;
-      return (p && p.display_name) || s || 'Someone';
-    };
-
-    list.innerHTML = topLevel.map(c => {
-      const replies = (repliesByParent[c.id] || []);
-      const parentName = nameFor(c);
-      const repliesHTML = replies.length
-        ? `<div class="comment-replies">${replies.map(r => commentItemHTML(r, canModerate, true, parentName)).join('')}</div>`
-        : '';
-      return `<div class="comment-thread">${commentItemHTML(c, canModerate, false)}${repliesHTML}</div>`;
-    }).join('');
+    list.innerHTML = roots.map(root =>
+      `<div class="comment-thread">${renderCommentNode(root, canModerate, false, null)}</div>`
+    ).join('');
   } catch(e) {
     list.innerHTML = `<div class="comment-empty">Couldn't load comments (${e.message}).</div>`;
   }
