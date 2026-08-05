@@ -196,6 +196,13 @@
   .comment-text { font-size: 13px; color: var(--text2); line-height: 1.4; margin-top: 2px; word-break: break-word; }
   .comment-delete { font-size: 11px; color: var(--text3); cursor: pointer; margin-top: 3px; }
   .comment-delete:hover { color: var(--sold); }
+  .comment-actions { display: flex; gap: 12px; margin-top: 3px; }
+  .comment-reply-btn { font-size: 11px; color: var(--text3); cursor: pointer; }
+  .comment-reply-btn:hover { color: var(--accent); }
+  .comment-replies { margin-top: 10px; padding-left: 14px; border-left: 2px solid var(--border); display: flex; flex-direction: column; gap: 10px; }
+  .comment-reply-input-row { display: flex; gap: 8px; margin-top: 8px; }
+  .comment-reply-input-row textarea { flex: 1; resize: none; height: 32px; background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 12.5px; padding: 7px 9px; font-family: var(--font); outline: none; }
+  .comment-reply-input-row textarea:focus { border-color: var(--accent); }
   .comment-input-row { display: flex; gap: 8px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
   .comment-input-row textarea { flex: 1; resize: none; height: 40px; background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 13px; padding: 9px 10px; font-family: var(--font); outline: none; }
   .comment-input-row textarea:focus { border-color: var(--accent); }
@@ -1797,9 +1804,11 @@ function followingCount(shortWallet) {
 }
 
 // ---- BEAT COMMENTS ----
-// Requires a `comments` table in Supabase (id, beat_id, user_id, wallet_address,
-// body, created_at) with RLS: public select, insert/delete restricted to
-// auth.uid() = user_id. See the SQL Claude provided separately to set this up.
+// Requires a `comments` table in Supabase (id, beat_id, parent_id, user_id,
+// wallet_address, body, created_at) with RLS: public select, insert
+// restricted to auth.uid() = user_id, delete allowed for the comment's own
+// author OR the artist who owns the beat (moderation). See the SQL Claude
+// provided separately to set this up.
 let commentCountByBeatId = {};
 let currentCommentsBeatId = null;
 
@@ -1828,47 +1837,89 @@ function openBeatComments(beatId) {
   renderBeatCommentsList();
 }
 
+// Renders one comment (and, for top-level comments, its replies underneath).
+// `canModerate` = the connected wallet is the beat's own artist, who may
+// delete any comment on their beat to defend against abuse; a comment's own
+// author can always delete their own regardless of whose beat it's on.
+function commentItemHTML(c, canModerate, isReply) {
+  const short = c.wallet_address ? shortAddr(c.wallet_address) : null;
+  const p = short ? profilesByShortWallet[short] : null;
+  const name = (p && p.display_name) || short || 'Someone';
+  const isMine = c.user_id === currentUserId;
+  const canDelete = isMine || canModerate;
+  const clickAttr = short ? `onclick="hideModal('beat-comments-modal');viewArtistProfile('${short}')"` : '';
+  return `<div class="comment-item">
+    <span class="comment-avatar" ${clickAttr}>${short ? avatarHTML(p, short) : '—'}</span>
+    <div class="comment-body">
+      <div class="comment-head">
+        <span class="comment-name" ${clickAttr}>${escapeHTML(name)}</span>
+        <span class="comment-time">${notifTimeAgo(tsToMs(c.created_at))}</span>
+      </div>
+      <div class="comment-text">${escapeHTML(c.body)}</div>
+      <div class="comment-actions">
+        ${!isReply && walletConnected ? `<span class="comment-reply-btn" onclick="toggleReplyBox(${c.id})">Reply</span>` : ''}
+        ${canDelete ? `<span class="comment-delete" onclick="deleteBeatComment(${c.id})">Delete</span>` : ''}
+      </div>
+      ${!isReply ? `<div id="reply-box-${c.id}" style="display:none">
+        <div class="comment-reply-input-row">
+          <textarea id="reply-input-${c.id}" placeholder="Reply…" maxlength="500" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();submitBeatComment(${c.id});}"></textarea>
+          <button class="btn btn-accent btn-sm" onclick="submitBeatComment(${c.id})">Post</button>
+        </div>
+      </div>` : ''}
+    </div>
+  </div>`;
+}
+
+function toggleReplyBox(commentId) {
+  const box = document.getElementById(`reply-box-${commentId}`);
+  if (!box) return;
+  const opening = box.style.display === 'none';
+  box.style.display = opening ? 'block' : 'none';
+  if (opening) document.getElementById(`reply-input-${commentId}`)?.focus();
+}
+
 async function renderBeatCommentsList() {
   const list = document.getElementById('beat-comments-list');
   if (!list || currentCommentsBeatId == null) return;
   list.innerHTML = `<div class="comment-empty">Loading…</div>`;
   try {
-    const rows = await sbFetch(`comments?beat_id=eq.${currentCommentsBeatId}&select=id,user_id,wallet_address,body,created_at&order=created_at.desc`);
+    const rows = await sbFetch(`comments?beat_id=eq.${currentCommentsBeatId}&select=id,parent_id,user_id,wallet_address,body,created_at&order=created_at.asc`);
     if (!rows || !rows.length) {
       list.innerHTML = `<div class="comment-empty">No comments yet — be the first!</div>`;
       return;
     }
-    list.innerHTML = rows.map(c => {
-      const short = c.wallet_address ? shortAddr(c.wallet_address) : null;
-      const p = short ? profilesByShortWallet[short] : null;
-      const name = (p && p.display_name) || short || 'Someone';
-      const isMine = c.user_id === currentUserId;
-      const clickAttr = short ? `onclick="hideModal('beat-comments-modal');viewArtistProfile('${short}')"` : '';
-      return `<div class="comment-item">
-        <span class="comment-avatar" ${clickAttr}>${short ? avatarHTML(p, short) : '—'}</span>
-        <div class="comment-body">
-          <div class="comment-head">
-            <span class="comment-name" ${clickAttr}>${escapeHTML(name)}</span>
-            <span class="comment-time">${notifTimeAgo(tsToMs(c.created_at))}</span>
-          </div>
-          <div class="comment-text">${escapeHTML(c.body)}</div>
-          ${isMine ? `<div class="comment-delete" onclick="deleteBeatComment(${c.id})">Delete</div>` : ''}
-        </div>
-      </div>`;
+    const beat = BEATS.find(b => b.id === currentCommentsBeatId);
+    const myShort = walletAddress ? shortAddr(walletAddress) : null;
+    const canModerate = !!(beat && myShort && beat.artist === myShort);
+
+    const topLevel = rows.filter(c => !c.parent_id).sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+    const repliesByParent = {};
+    rows.filter(c => c.parent_id).forEach(c => {
+      (repliesByParent[c.parent_id] = repliesByParent[c.parent_id] || []).push(c);
+    });
+
+    list.innerHTML = topLevel.map(c => {
+      const replies = (repliesByParent[c.id] || []);
+      const repliesHTML = replies.length
+        ? `<div class="comment-replies">${replies.map(r => commentItemHTML(r, canModerate, true)).join('')}</div>`
+        : '';
+      return commentItemHTML(c, canModerate, false) + repliesHTML;
     }).join('');
   } catch(e) {
     list.innerHTML = `<div class="comment-empty">Couldn't load comments (${e.message}).</div>`;
   }
 }
 
-async function submitBeatComment() {
+async function submitBeatComment(parentId) {
   if (!walletConnected) { connectWallet(); return; }
-  const input = document.getElementById('beat-comment-input');
+  const input = parentId ? document.getElementById(`reply-input-${parentId}`) : document.getElementById('beat-comment-input');
+  if (!input) return;
   const body = input.value.trim();
   if (!body) return;
   try {
     const { error } = await supabaseClient.from('comments').insert({
       beat_id: currentCommentsBeatId,
+      parent_id: parentId || null,
       user_id: currentUserId,
       wallet_address: walletAddress,
       body
