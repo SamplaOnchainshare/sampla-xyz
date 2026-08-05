@@ -2290,12 +2290,26 @@ async function loadNotifications() {
         return { id: 'comment:' + c.id, type: 'comment', shortWallet: c.wallet_address ? shortAddr(c.wallet_address) : null, beatId: c.beat_id, beatTitle: beat ? beat.title : 'your beat', ts: tsToMs(c.created_at) };
       });
 
-    // Only flag as a 'reply' when the beat isn't already yours — otherwise
-    // it's the same physical comment already covered by commentItems above,
-    // and showing both would just be two notifications for one comment.
+    // Flag as a 'reply' when YOU appear anywhere up the parent chain of a
+    // new comment — not just as the direct parent. In a deep thread with
+    // several participants, everyone who already spoke in that chain cares
+    // about new activity further down it, not only whoever got replied to
+    // directly. Walking the whole ancestor chain (not just one level) is
+    // what makes that work regardless of how deep the thread goes.
+    // Still skipped when the beat is your own, since that's already covered
+    // by commentItems above and showing both would double up.
     replyItems = (comments || [])
-      .filter(c => c.parent_id && c.user_id !== currentUserId && !myBeatIds.includes(c.beat_id)
-        && commentsById[c.parent_id] && commentsById[c.parent_id].user_id === currentUserId)
+      .filter(c => c.parent_id && c.user_id !== currentUserId && !myBeatIds.includes(c.beat_id))
+      .filter(c => {
+        let cur = commentsById[c.parent_id];
+        const visited = new Set(); // guards against a corrupt/cyclic parent chain
+        while (cur && !visited.has(cur.id)) {
+          if (cur.user_id === currentUserId) return true;
+          visited.add(cur.id);
+          cur = cur.parent_id ? commentsById[cur.parent_id] : null;
+        }
+        return false;
+      })
       .map(c => {
         const beat = BEATS.find(b => b.id === c.beat_id);
         return { id: 'reply:' + c.id, type: 'reply', shortWallet: c.wallet_address ? shortAddr(c.wallet_address) : null, beatId: c.beat_id, beatTitle: beat ? beat.title : 'a beat', ts: tsToMs(c.created_at) };
@@ -2326,7 +2340,7 @@ function notifItemText(n) {
     case 'download': return `<strong>${n.shortWallet ? notifActorName(n.shortWallet) : 'Someone'}</strong> downloaded "${n.sampleTitle}"`;
     case 'sale': return `<strong>${notifActorName(n.shortWallet)}</strong> bought "${n.beatTitle}"`;
     case 'comment': return `<strong>${n.shortWallet ? notifActorName(n.shortWallet) : 'Someone'}</strong> commented on "${n.beatTitle}"`;
-    case 'reply': return `<strong>${n.shortWallet ? notifActorName(n.shortWallet) : 'Someone'}</strong> replied to your comment on "${n.beatTitle}"`;
+    case 'reply': return `<strong>${n.shortWallet ? notifActorName(n.shortWallet) : 'Someone'}</strong> replied in a thread you're part of on "${n.beatTitle}"`;
     default: return '';
   }
 }
