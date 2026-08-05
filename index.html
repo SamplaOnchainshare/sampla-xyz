@@ -2139,12 +2139,12 @@ function renderArtistProfile() {
 // "Unread" state is tracked client-side: each event gets a stable id, and
 // we diff against a per-wallet snapshot of ids already seen, saved in
 // localStorage. Opening the dropdown marks the current set as seen.
-let notifData = { followers: [], likes: [], downloads: [], sales: [], comments: [] };
+let notifData = { followers: [], likes: [], downloads: [], sales: [], comments: [], replies: [] };
 let notifSeenKey = null;
 let notifPollInterval = null;
 
 function notifSnapshotIds() {
-  return [...notifData.followers, ...notifData.likes, ...notifData.downloads, ...notifData.sales, ...(notifData.comments||[])].map(n => n.id);
+  return [...notifData.followers, ...notifData.likes, ...notifData.downloads, ...notifData.sales, ...(notifData.comments||[]), ...(notifData.replies||[])].map(n => n.id);
 }
 
 function getSeenNotifIds() {
@@ -2247,21 +2247,36 @@ async function loadNotifications() {
     .filter(b => b.artist === myShort && b.sold && b.buyerWallet)
     .map(b => ({ id: 'sale:' + b.id, type: 'sale', shortWallet: b.soldTo, beatTitle: b.title, ts: saleTsById[b.id] ?? null }));
 
-  // New comments on my beats
+  // Comments on my beats, and replies to MY comments (even on someone
+  // else's beat) — one sitewide fetch, small enough at current scale, so we
+  // don't need two separate round trips.
   let commentItems = [];
-  if (myBeatIds.length) {
-    try {
-      const comments = await sbFetch(`comments?beat_id=in.(${myBeatIds.join(',')})&select=id,beat_id,wallet_address,body,created_at`);
-      commentItems = (comments || [])
-        .filter(c => c.wallet_address !== walletAddress)
-        .map(c => {
-          const beat = BEATS.find(b => b.id === c.beat_id);
-          return { id: 'comment:' + c.id, type: 'comment', shortWallet: c.wallet_address ? shortAddr(c.wallet_address) : null, beatId: c.beat_id, beatTitle: beat ? beat.title : 'your beat', ts: tsToMs(c.created_at) };
-        });
-    } catch(e) { console.log('loadNotifications comments (does the comments table exist yet?):', e.message); }
-  }
+  let replyItems = [];
+  try {
+    const comments = await sbFetch(`comments?select=id,parent_id,beat_id,user_id,wallet_address,body,created_at`);
+    const commentsById = {};
+    (comments || []).forEach(c => { commentsById[c.id] = c; });
 
-  notifData = { followers: followerItems, likes: likeItems, downloads: downloadItems, sales: saleItems, comments: commentItems };
+    commentItems = (comments || [])
+      .filter(c => myBeatIds.includes(c.beat_id) && c.wallet_address !== walletAddress)
+      .map(c => {
+        const beat = BEATS.find(b => b.id === c.beat_id);
+        return { id: 'comment:' + c.id, type: 'comment', shortWallet: c.wallet_address ? shortAddr(c.wallet_address) : null, beatId: c.beat_id, beatTitle: beat ? beat.title : 'your beat', ts: tsToMs(c.created_at) };
+      });
+
+    // Only flag as a 'reply' when the beat isn't already yours — otherwise
+    // it's the same physical comment already covered by commentItems above,
+    // and showing both would just be two notifications for one comment.
+    replyItems = (comments || [])
+      .filter(c => c.parent_id && c.user_id !== currentUserId && !myBeatIds.includes(c.beat_id)
+        && commentsById[c.parent_id] && commentsById[c.parent_id].user_id === currentUserId)
+      .map(c => {
+        const beat = BEATS.find(b => b.id === c.beat_id);
+        return { id: 'reply:' + c.id, type: 'reply', shortWallet: c.wallet_address ? shortAddr(c.wallet_address) : null, beatId: c.beat_id, beatTitle: beat ? beat.title : 'a beat', ts: tsToMs(c.created_at) };
+      });
+  } catch(e) { console.log('loadNotifications comments (does the comments table exist yet?):', e.message); }
+
+  notifData = { followers: followerItems, likes: likeItems, downloads: downloadItems, sales: saleItems, comments: commentItems, replies: replyItems };
   renderNotifications();
 }
 
@@ -2285,6 +2300,7 @@ function notifItemText(n) {
     case 'download': return `<strong>${n.shortWallet ? notifActorName(n.shortWallet) : 'Someone'}</strong> downloaded "${n.sampleTitle}"`;
     case 'sale': return `<strong>${notifActorName(n.shortWallet)}</strong> bought "${n.beatTitle}"`;
     case 'comment': return `<strong>${n.shortWallet ? notifActorName(n.shortWallet) : 'Someone'}</strong> commented on "${n.beatTitle}"`;
+    case 'reply': return `<strong>${n.shortWallet ? notifActorName(n.shortWallet) : 'Someone'}</strong> replied to your comment on "${n.beatTitle}"`;
     default: return '';
   }
 }
@@ -2294,11 +2310,12 @@ const NOTIF_ICONS = {
   like: '<svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 21s-6.7-4.3-9.3-8.2C1 10 1.6 6.5 4.6 5 7 3.8 9.5 4.7 12 7.4 14.5 4.7 17 3.8 19.4 5c3 1.5 3.6 5 1.9 7.8C18.7 16.7 12 21 12 21z"/></svg>',
   download: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12"/><polyline points="7 10 12 15 17 10"/><path d="M5 21h14"/></svg>',
   sale: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>',
-  comment: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>'
+  comment: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>',
+  reply: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>'
 };
 
 function notifClickTarget(n) {
-  if (n.type === 'comment') return `toggleNotifDropdown(true);openBeatComments(${n.beatId})`;
+  if (n.type === 'comment' || n.type === 'reply') return `toggleNotifDropdown(true);openBeatComments(${n.beatId})`;
   if ((n.type === 'follow' || n.type === 'download') && n.shortWallet) return `viewArtistProfile('${n.shortWallet}')`;
   if (n.type === 'sale' || n.type === 'like') return `showPage('profile', document.getElementById('nav-profile'))`;
   return '';
@@ -2309,7 +2326,7 @@ function renderNotifications() {
   const list = document.getElementById('notif-list');
   if (!badge || !list) return;
 
-  const all = [...notifData.followers, ...notifData.likes, ...notifData.downloads, ...notifData.sales, ...(notifData.comments||[])]
+  const all = [...notifData.followers, ...notifData.likes, ...notifData.downloads, ...notifData.sales, ...(notifData.comments||[]), ...(notifData.replies||[])]
     .sort((a, b) => (b.ts ?? 0) - (a.ts ?? 0));
   const seen = getSeenNotifIds();
   const unseenCount = all.filter(n => !seen.has(n.id)).length;
@@ -2367,7 +2384,7 @@ function stopNotifications() {
   const widget = document.getElementById('notif-widget');
   if (widget) widget.style.display = 'none';
   if (notifPollInterval) { clearInterval(notifPollInterval); notifPollInterval = null; }
-  notifData = { followers: [], likes: [], downloads: [], sales: [], comments: [] };
+  notifData = { followers: [], likes: [], downloads: [], sales: [], comments: [], replies: [] };
   notifSeenKey = null;
 }
 
